@@ -5,6 +5,6 @@ CONFIG -= qt
 
 SOURCES += main.cpp
 
-LIBS += -lGLEW -lglfw -lGL -lgomp
+LIBS += -lGLEW -lglfw -lGL -lgomp -lGLU
 
-QMAKE_CXXFLAGS = -fopenmp -O2 -std=c++14
+QMAKE_CXXFLAGS = -fopenmp -std=c++14 -O3

@@ -59,8 +59,8 @@ int main() {
     GLFWwindow *window;
     window = glfwCreateWindow(1920, 1080, "t", NULL, NULL);
     glfwMakeContextCurrent(window);
-    const int H = 1920;
-    const int W = 1080;
+    const int H = 1080;
+    const int W = 1920;
 
     const Vec3 white(255, 255, 255);
     const Vec3 black(0, 0, 0);
@@ -70,20 +70,24 @@ int main() {
     Sphere sphere(Vec3(W*0.5, H*0.5, 50), 50);
     Sphere sphere2(Vec3(W*0.5, H*0.5, 10), 20);
     const Sphere light(Vec3(0, 0, 50), 1);
-    float t;
     Vec3 pix_col(black);
     uint8_t fb[1920*1080*3];
     timeval past, present;
     gettimeofday(&past, NULL);
     int frame = 0;
     int prevframe = frame;
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluOrtho2D(0.0, (GLfloat) 100, 0.0, (GLfloat) 100);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
     while(!glfwWindowShouldClose(window)) {
         frame++;
+        #pragma omp parallel for
         for (int y = 0; y < H; ++y) {
-            #pragma omp for ordered schedule(dynamic)
             for (int x = 0; x < W; ++x) {
+                float t = 0;
                 pix_col = black;
-
                 const Ray ray(Vec3(x,y,0),Vec3(0,0,1));
                 bool s1;
                 if (s1 = sphere.intersect(ray, t)) {
@@ -109,12 +113,14 @@ int main() {
                         clamp255(pix_col);
                     }
                 }
-                #pragma omp ordered
-                fb[(x*(W*3)) + (y*3)] = (int)pix_col.x;
-                fb[(x*(W*3)) + (y*3) + 1] = (int)pix_col.y;
-                fb[(x*(W*3)) + (y*3) + 2] = (int)pix_col.z;
+                fb[(y*W*3) + (x*3)] = (int)pix_col.x;
+                fb[(y*W*3) + (x*3) + 1] = (int)pix_col.y;
+                fb[(y*W*3) + (x*3) + 2] = (int)pix_col.z;
             }
         }
+
+        glClear(GL_COLOR_BUFFER_BIT);
+        glRasterPos2i(0,0);
         glDrawPixels(W, H, GL_RGB, GL_UNSIGNED_BYTE, fb);
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -127,6 +133,6 @@ int main() {
             glfwSetWindowTitle(window, title.c_str());
             past = present;
         }
-        sphere2 = Sphere(Vec3(W*0.5, (H*0.5)+cos(frame/16.0)*100, 50+sin(frame/16.0)*100), 20);
+        sphere2 = Sphere(Vec3(W*0.5+cos(frame/16.0)*100, (H*0.5)+cos(frame/16.0)*100, 50+sin(frame/16.0)*100), 20);
     }
 }
