@@ -67,12 +67,12 @@ public:
     Intersection intersect(Ray &ray) {
         Intersection ret;
         glm::vec4 m = ray.origin - origin;
-        float b = glm::dot(m, ray.direction);
+        float b = 2*glm::dot(m, ray.direction);
         float c = glm::dot(m, m) - (radius*radius);
         if((c > 0.0f) && (b > 0.0f)) return ret;
-        float discr = (b*b) - (c);
+        float discr = (b*b) - (4*c);
         if(discr < 1e-4) return ret;
-        float t = (-b - sqrtf(discr));
+        float t = (-b - sqrtf(discr)) / 2;
         if(t < 0.0f) t = 0.0f;
         ret.point = ray.origin + (t * ray.direction);
         ret.t = t;
@@ -82,8 +82,8 @@ public:
         return ret;
     }
 private:
-    glm::vec4 origin;
     float radius;
+    glm::vec4 origin;
 };
 
 class SceneManager {
@@ -117,12 +117,12 @@ public:
                 std::vector<Intersection> hits;
                 for(Intersectable *obj : intersectables) {
                     Intersection hit = obj->intersect(r);
-                    if(hit.intersected) {
-                        hits.push_back(hit);
-                        fb.fb[(y*fb.x*3) + (x*3)] = 255*(nx);
-                        fb.fb[(y*fb.x*3) + (x*3) + 1] = 255*(ny);
-                        fb.fb[(y*fb.x*3) + (x*3) + 2] = 0;
-                    }
+                    //if(hit.intersected) {
+                        //hits.push_back(hit);
+                        fb.fb[(y*fb.x) + (x*3)] = 255;
+                        fb.fb[(y*fb.x) + (x*3) + 1] = 255;                     
+                        fb.fb[(y*fb.x) + (x*3) + 2] = 255;
+                    //}
                 }
             }
         }
@@ -152,11 +152,6 @@ int main() {
     Framebuffer fb;
     fb.x = 1920;
     fb.y = 1080;
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluOrtho2D(0.0, (GLfloat) 100, 0.0, (GLfloat) 100);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
     while(!glfwWindowShouldClose(window)) {
         man.render(fb);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -165,6 +160,5 @@ int main() {
         glfwSwapBuffers(window);
         glfwPollEvents();
         glfwSwapInterval(1);
-        free(fb.fb);
     }
 }
