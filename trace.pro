@@ -7,4 +7,4 @@ SOURCES += main.cpp
 
 LIBS += -lGLEW -lglfw -lGL -lgomp -lGLU
 
-QMAKE_CXXFLAGS = -fopenmp -std=c++14 -O3
+QMAKE_CXXFLAGS = -fopenmp -std=c++14
