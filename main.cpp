@@ -328,11 +328,11 @@ public:
         config = cfg;
     }
 
-    void cast(Ray &r, std::vector<Intersection> &hits, bool &anyintersection) {
+    void cast(Ray &r, std::vector<Intersection> *hits, bool &anyintersection) {
         for(auto obj : intersectables_cached) {
             Intersection hit = obj->intersect(r);
             if(hit.intersected) {
-                hits.push_back(hit);
+                hits->push_back(hit);
                 anyintersection = true;
             }
         }
@@ -356,7 +356,7 @@ public:
                 r.direction = (correctedright * nx) + (-localup * ny) + config.lookat;
                 r.direction = glm::normalize(r.direction);
                 bool anyintersection = false;
-                cast(r, hits, anyintersection);
+                cast(r, &hits, anyintersection);
                 if(!anyintersection) {
                     std::memset(fb.fb + (y*fb.x*3) + (x*3), 0, 3);
                     continue;
@@ -375,15 +375,17 @@ public:
                     float dt = glm::dot(glm::normalize(l), n);
                     fcolor += (light->color*dt);
                     Ray s;
-                    s.origin = glm::vec3(hits[0].point + (n * 0.1f));
+                    s.origin = glm::vec3(hits[0].point) + (n * 0.1f);
                     s.direction = glm::normalize(light->location - hits[0].point);
                     bool r = false;
-                    cast(s, shadow_hits, r);
+                    cast(s, &shadow_hits, r);
                     if(!r)
                         lit = true;
                 }
                 if (!lit) {
                     std::memset(fb.fb + ((fb.x * y) + x)*3, 0 , 3);
+                    shadow_hits.clear();
+                    hits.clear();
                     continue;
                 }
                 fcolor += hits[0].mat.color;
@@ -402,15 +404,15 @@ public:
         if(!(fb.x) || !(fb.y)) {
             return;
         }
-        /*size_t ystep = fb.y/8;
+        size_t ystep = fb.y/8;
         std::vector<std::future<void>> f(8);
         for(size_t i = 0; i < 8; i++) {
             f[i] = pool.push(std::bind(&SceneManager::RenderSlice, this, ystep*i, ystep*(i+1), fb));
         }
         for(size_t i = 0; i < 8; i++) {
             f[i].get();
-        }*/
-        RenderSlice(0, fb.y, fb);
+        }
+        //RenderSlice(0, fb.y, fb);
         //RenderSlice(0, fb.y/2, fb);
         //RenderSlice(fb.y/2, fb.y, fb);
     }
@@ -429,16 +431,16 @@ int main() {
     glewInit();
     glfwInit();
     GLFWwindow *window;
-    window = glfwCreateWindow(200, 200, "t", NULL, NULL);
+    window = glfwCreateWindow(1280, 720, "t", NULL, NULL);
     glfwMakeContextCurrent(window);
-    glm::vec3 tris[3] = {glm::vec3(10.0, -3.0, -10.0), glm::vec3(-10.0, -3.0, 10.0), glm::vec3(-10.0, -3.0, -10.0)};
+    glm::vec3 tris[3] = {glm::vec3(40.0, -3.0, -40.0), glm::vec3(-40.0, -3.0, 40.0), glm::vec3(-40.0, -3.0, -40.0)};
     Triangle *tri = new Triangle(tris, glm::vec3(1.0, 0.0, 1.0));
-    glm::vec3 tris2[3] = {glm::vec3(10.0, -3.0, -10.0), glm::vec3(-10.0, -3.0, 10.0), glm::vec3(10.0, -3.0, 10.0)};
+    glm::vec3 tris2[3] = {glm::vec3(40.0, -3.0, -40.0), glm::vec3(-40.0, -3.0, 40.0), glm::vec3(40.0, -3.0, 40.0)};
     Triangle *tri2 = new Triangle(tris2, glm::vec3(1.0, 0.0, 1.0));
     Sphere *s = new Sphere(glm::vec3(0.0, 0.0, 0.0), 2, glm::vec3(0.0, 0.0, 1.0));
     Sphere *s2 = new Sphere(glm::vec3(10.0, 0.0, 0.0), 2, glm::vec3(0.0, 1.0, 0.0));
     Sphere *s3 = new Sphere(glm::vec3(10.0, 0.0, 10.0), 2, glm::vec3(1.0, 0.0, 0.0));
-    Light *l = new Light(glm::vec3(-10.0, 2.0, -10.0), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1.0, 0.20));
+    Light *l = new Light(glm::vec3(-10.0, 8.0, -10.0), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1.0, 0.20));
     std::vector<Triangle> triangles;
     triangles.push_back(*tri);
     triangles.push_back(*tri2);
@@ -461,8 +463,8 @@ int main() {
     printVec3(cfg.up);
     man.SetCameraConfig(cfg);
     Framebuffer fb;
-    fb.x = 200;
-    fb.y = 200;
+    fb.x = 1280;
+    fb.y = 720;
     fb.fb = (uint8_t*)malloc(fb.x*fb.y*3);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -481,6 +483,8 @@ int main() {
     float vertical = 0.0f;
     float mspeed = 0.005f;
     while(!glfwWindowShouldClose(window)) {
+        l->location.x = sin(frame/32.0)*20;
+        l->location.z = cos(frame/32.0)*20;
         double xpos = 0, ypos = 0;
         glfwGetCursorPos(window, &xpos, &ypos);
         glfwSetCursorPos(window, fb.x/2, fb.y/2);
