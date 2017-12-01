@@ -358,7 +358,9 @@ public:
                 bool anyintersection = false;
                 cast(r, &hits, anyintersection);
                 if(!anyintersection) {
-                    std::memset(fb.fb + (y*fb.x*3) + (x*3), 0, 3);
+                    fb.fb[((fb.x * y) + x)*3] = 135;
+                    fb.fb[((fb.x * y) + x)*3 + 1] = 206;
+                    fb.fb[((fb.x * y) + x)*3 + 2] = 235;
                     continue;
                 }
                 std::sort(hits.begin(), hits.end(), [](Intersection a, Intersection b){
@@ -373,27 +375,35 @@ public:
                         n = -n;
                     }
                     float dt = glm::dot(glm::normalize(l), n);
-                    fcolor += (light->color*dt);
+                    float albedo = 0.18 / 3.14f;
                     Ray s;
-                    s.origin = glm::vec3(hits[0].point) + (n * 0.1f);
+                    s.origin = glm::vec3(hits[0].point) + (n * 0.001f);
                     s.direction = glm::normalize(light->location - hits[0].point);
                     bool r = false;
                     cast(s, &shadow_hits, r);
-                    if(!r)
+                    std::sort(shadow_hits.begin(), shadow_hits.end(), [](Intersection a, Intersection b){
+                        return b.t > a.t;
+                    });
+                    if((!r) || (glm::distance(shadow_hits[0].point, s.origin) > glm::distance(s.origin, light->location))) {
+                        fcolor += (((light->color*dt))* hits[0].mat.color);
                         lit = true;
+                    }
+                    shadow_hits.clear();
                 }
+
+                fcolor.x = pow(fcolor.x, 1.0 / 2.2);
+                fcolor.y = pow(fcolor.y, 1.0 / 2.2);
+                fcolor.z = pow(fcolor.z, 1.0 / 2.2);
+
                 if (!lit) {
                     std::memset(fb.fb + ((fb.x * y) + x)*3, 0 , 3);
-                    shadow_hits.clear();
                     hits.clear();
                     continue;
                 }
-                fcolor += hits[0].mat.color;
-                fcolor /= lights.size() + 1;
+                //fcolor /= lights.size() + 1;
                 fb.fb[((fb.x * y) + x)*3] = fminf(fmaxf(0,fcolor.x*255),255);
                 fb.fb[((fb.x * y) + x)*3 + 1] = fminf(fmaxf(0,fcolor.y*255),255);
                 fb.fb[((fb.x * y) + x)*3 + 2] = fminf(fmaxf(0,fcolor.z*255),255);
-                shadow_hits.clear();
                 hits.clear();
 
             }
@@ -441,6 +451,8 @@ int main() {
     Sphere *s2 = new Sphere(glm::vec3(10.0, 0.0, 0.0), 2, glm::vec3(0.0, 1.0, 0.0));
     Sphere *s3 = new Sphere(glm::vec3(10.0, 0.0, 10.0), 2, glm::vec3(1.0, 0.0, 0.0));
     Light *l = new Light(glm::vec3(-10.0, 8.0, -10.0), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1.0, 0.20));
+    Light *l2 = new Light(glm::vec3(10, 10, 10), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1.0, 0.20));
+
     std::vector<Triangle> triangles;
     triangles.push_back(*tri);
     triangles.push_back(*tri2);
@@ -454,6 +466,7 @@ int main() {
     man.AddObject(tri);
     man.AddObject(tri2);
     man.AddLight(l);
+    man.AddLight(l2);
     CameraConfig cfg;
     cfg.center = glm::vec3(16.0, 4.0, 16.0);
     printVec3(cfg.center);
