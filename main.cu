@@ -17,6 +17,13 @@
 #include "ctpl.h"
 #include <time.h>
 #include <set>
+#include <cstdlib>
+#include <cuda/cuda.h>
+#include <cuda/cuda_runtime.h>
+#include <cuda/thrust/device_vector.h>
+#ifndef __global__
+ #define __global__
+#endif
 
 class SceneManager;
 
@@ -65,7 +72,7 @@ struct Light {
 class Intersectable;
 
 struct Intersection {
-    Intersection() : intersected(false), t(0.0f) {}
+    __host__ __device__ Intersection() : intersected(false), t(0.0f) {}
     bool intersected;
     glm::vec3 point;
     float t;
@@ -74,12 +81,95 @@ struct Intersection {
     Material mat;
 };
 
+class DeviceIntersectable {
+public:
+    virtual __device__ glm::vec3 getNormal(Ray &r, float &t) { return glm::vec3(); }
+    virtual __device__ Intersection intersect(Ray &r) {
+        return Intersection();
+    }
+};
+
 class Intersectable {
 public:
     virtual glm::vec3 getNormal(Ray &r, float &t) { return glm::vec3(); }
     virtual Intersection intersect(Ray &r) {
         return Intersection();
     }
+    virtual DeviceIntersectable* returnDeviceIntersectable() {
+        return new DeviceIntersectable;
+    }
+};
+class DeviceTriangle : public DeviceIntersectable {
+    friend class MeshBuilder;
+public:
+    __host__ __device__ Triangle(glm::vec3 pts[3], glm::vec3 color) : color(color) {
+        memcpy(this->pts, pts, sizeof(glm::vec3)*3);
+        glm::vec3 u = pts[1] - pts[0];
+        glm::vec3 v = pts[2] - pts[0];
+        for(size_t i = 0; i < 3; i++) {
+            normals[i] = glm::normalize(glm::cross(u, v));
+        }
+    }
+
+    __device__ void setNormal(glm::vec3 nls[3]) {
+        memcpy(normals, nls, sizeof(glm::vec3)*3);
+    }
+
+    __device__ virtual glm::vec3 getNormal(Ray &r, float &t) {
+        glm::vec3 pt = r.origin + r.direction*t;
+        glm::vec3 nearest;
+        float dist = INFINITY;
+        for(glm::vec3 n : normals) {
+            float cdist = glm::distance(pt, n);
+            if(cdist < dist) {
+                nearest = n;
+                dist = cdist;
+            }
+        }
+        return nearest;
+    }
+
+    __device__ virtual Intersection intersect(Ray &r) {
+        const float eps = 0.0000001;
+        glm::vec3 edge1, edge2, h, s, q;
+        float a, f, u, v;
+        Intersection ret;
+        edge1 = pts[1] - pts[0];
+        edge2 = pts[2] - pts[0];
+        h = glm::cross(r.direction, edge2);
+        a = glm::dot(edge1, h);
+        if(a > -eps && a < eps) {
+            return ret;
+        }
+        f = 1/a;
+        s = r.origin - pts[0];
+        u = f * glm::dot(s, h);
+        if(u < 0.0 || u > 1.0) {
+            return ret;
+        }
+        q = glm::cross(s, edge1);
+        v = f * glm::dot(r.direction, q);
+        if(v < 0.0 || u+v > 1.0)
+            return ret;
+        ret.intersected = true;
+        ret.t = f * glm::dot(edge2, q);
+        if(ret.t < eps) {
+            ret.intersected = false;
+            return ret;
+        }
+        ret.point = r.origin + r.direction*ret.t;
+        ret.normal = getNormal(r, ret.t);
+        Material mat;
+        mat.color = color;
+        ret.mat = mat;
+        ret.obj = this;
+        return ret;
+    }
+
+private:
+    glm::vec3 pts[3];
+    glm::vec3 normals[3];
+    glm::vec3 color;
 };
 
 struct Work {
@@ -164,6 +254,10 @@ public:
         return ret;
     }
 
+    virtual DeviceIntersectable* returnDeviceIntersectable() {
+        return new DeviceTriangle(pts, color);
+    }
+
 private:
     glm::vec3 pts[3];
     glm::vec3 normals[3];
@@ -245,6 +339,41 @@ private:
     std::vector<Triangle> tris;
 };
 
+class Sphere : public DeviceIntersectable {
+public:
+    __host__ Sphere(glm::vec3 origin, float radius, glm::vec3 color) : origin(origin), radius(radius), color(color) {}
+    __device__ glm::vec3 getNormal(Ray &ray, float &t) { return ((ray.origin + (t*ray.direction) - origin)) / radius; }
+    __device__ Intersection intersect(Ray &ray) {
+        Intersection ret;
+        glm::vec3 p = ray.origin - origin;
+        float rpow2 = radius*radius;
+        float p_d = glm::dot(p, ray.direction);
+
+        if(p_d > 0 || dot(p, p) < rpow2)
+            return ret;
+
+        glm::vec3 a = p - p_d * ray.direction;
+        float apow2 = glm::dot(a, a);
+        if(apow2 > rpow2)
+            return ret;
+        ret.intersected = true;
+        float h = sqrtf(rpow2 - apow2);
+        glm::vec3 i = a - h*ray.direction;
+        ret.point = origin + i;
+        ret.t = ((ret.point - ray.origin) / ray.direction).x;
+        ret.normal = i/radius;
+        Material mat;
+        mat.color = color;
+        ret.mat = mat;
+        return ret;
+
+    }
+private:
+    glm::vec3 origin;
+    float radius;
+    glm::vec3 color;
+};
+
 class Sphere : public Intersectable {
 public:
     Sphere(glm::vec3 origin, float radius, glm::vec3 color) : origin(origin), radius(radius), color(color) {}
@@ -280,10 +409,20 @@ private:
     glm::vec3 color;
 };
 
+__global__
+void castRay(Ray r, DeviceIntersectable* devptr, size_t nitems) {
+    if(threadIdx.x < nitems) {
+        DeviceIntersectable *curitem = devptr + threadIdx.x;
+        curitem->intersect(r);
+    }
+}
+
+
 class SceneManager {
 public:
     SceneManager() : pool(8) {
         current_id = 0;
+        fast_srand(0);
     }
 
     OwnedHandle AddObject(Intersectable* obj) {
@@ -316,7 +455,7 @@ public:
         intersectables_cached.clear();
         for(auto kv : intersectables) {
             Intersectable *obj = kv.second;
-            intersectables_cached.push_back(kv.second);
+            intersectables_cached.push_back(obj);
         }
     }
 
@@ -326,6 +465,13 @@ public:
     
     void SetCameraConfig(CameraConfig &cfg) {
         config = cfg;
+    }
+
+    glm::vec3 GenerateNoiseVector() {
+        int x = fast_rand() % UINT16_MAX;
+        int y = fast_rand() % UINT16_MAX;
+        int z = fast_rand() % UINT16_MAX;
+        return glm::vec3(x, y, z);
     }
 
     void cast(Ray &r, std::vector<Intersection> *hits, bool &anyintersection) {
@@ -378,9 +524,10 @@ public:
                     float albedo = 0.18 / 3.14f;
                     Ray s;
                     s.origin = glm::vec3(hits[0].point) + (n * 0.001f);
-                    s.direction = glm::normalize(light->location - hits[0].point);
+                    glm::vec3 noise = GenerateNoiseVector();
+                    s.direction = glm::normalize((light->location - hits[0].point) + noise/(float)(UINT16_MAX*2));
                     bool r = false;
-                    cast(s, &shadow_hits, r);
+                    //cast(s, &shadow_hits, r);
                     std::sort(shadow_hits.begin(), shadow_hits.end(), [](Intersection a, Intersection b){
                         return b.t > a.t;
                     });
@@ -391,9 +538,9 @@ public:
                     shadow_hits.clear();
                 }
 
-                fcolor.x = pow(fcolor.x, 1.0 / 2.2);
-                fcolor.y = pow(fcolor.y, 1.0 / 2.2);
-                fcolor.z = pow(fcolor.z, 1.0 / 2.2);
+                //fcolor.x = pow(fcolor.x, 1.0 / 2.2);
+                //fcolor.y = pow(fcolor.y, 1.0 / 2.2);
+                //fcolor.z = pow(fcolor.z, 1.0 / 2.2);
 
                 if (!lit) {
                     std::memset(fb.fb + ((fb.x * y) + x)*3, 0 , 3);
@@ -426,7 +573,19 @@ public:
         //RenderSlice(0, fb.y/2, fb);
         //RenderSlice(fb.y/2, fb.y, fb);
     }
+
+    inline void fast_srand(int seed) {
+        g_seed = seed;
+    }
+
+    // Compute a pseudorandom integer.
+    // Output value in range [0, 32767]
+    inline int fast_rand(void) {
+        g_seed = (214013*g_seed+2531011);
+        return (g_seed>>16)&0x7FFF;
+    }
 private:
+    unsigned int g_seed;
     bool frun = true;
     std::atomic<size_t> current_id;
     CameraConfig config;
@@ -495,6 +654,7 @@ int main() {
     float horizontal = 3.14f;
     float vertical = 0.0f;
     float mspeed = 0.005f;
+    cudaDeviceSynchronize();
     while(!glfwWindowShouldClose(window)) {
         l->location.x = sin(frame/32.0)*20;
         l->location.z = cos(frame/32.0)*20;
@@ -525,6 +685,7 @@ int main() {
         if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
             cfg.center -= right;
         }
+        cudaGetLastError();
         man.SetCameraConfig(cfg);
         man.render(fb);
         glClear(GL_COLOR_BUFFER_BIT);
