@@ -99,6 +99,7 @@ public:
         return new DeviceIntersectable;
     }
 };
+/*
 class DeviceTriangle : public DeviceIntersectable {
     friend class MeshBuilder;
 public:
@@ -170,7 +171,7 @@ private:
     glm::vec3 pts[3];
     glm::vec3 normals[3];
     glm::vec3 color;
-};
+};*/
 
 struct Work {
     Framebuffer fb;
@@ -255,7 +256,7 @@ public:
     }
 
     virtual DeviceIntersectable* returnDeviceIntersectable() {
-        return new DeviceTriangle(pts, color);
+        //return new DeviceTriangle(pts, color);
     }
 
 private:
@@ -338,8 +339,8 @@ public:
 private:
     std::vector<Triangle> tris;
 };
-
-class Sphere : public DeviceIntersectable {
+/*
+class DSphere : public DeviceIntersectable {
 public:
     __host__ Sphere(glm::vec3 origin, float radius, glm::vec3 color) : origin(origin), radius(radius), color(color) {}
     __device__ glm::vec3 getNormal(Ray &ray, float &t) { return ((ray.origin + (t*ray.direction) - origin)) / radius; }
@@ -372,7 +373,7 @@ private:
     glm::vec3 origin;
     float radius;
     glm::vec3 color;
-};
+};*/
 
 class Sphere : public Intersectable {
 public:
