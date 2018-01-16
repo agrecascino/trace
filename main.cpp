@@ -18,11 +18,13 @@
 #include <time.h>
 #include <set>
 #include <cstdlib>
-#include <cuda/cuda.h>
-#include <cuda/cuda_runtime.h>
-#include <cuda/thrust/device_vector.h>
+//#include <cuda/cuda.h>
+//#include <cuda/cuda_runtime.h>
+//#include <cuda/thrust/device_vector.h>
 #ifndef __global__
  #define __global__
+ #define __device__
+ #define __host__
 #endif
 
 class SceneManager;
@@ -45,7 +47,7 @@ struct CameraConfig {
 struct Ray {
     glm::vec3 origin;
     glm::vec3 direction;
-    size_t bounces;
+    size_t bounces = 0;
 };
 
 struct Framebuffer {
@@ -56,6 +58,7 @@ struct Framebuffer {
 
 struct Material {
     glm::vec3 color;
+    bool reflective = false;
 };
 
 struct Light {
@@ -191,31 +194,15 @@ class MeshBuilder;
 class Triangle : public Intersectable {
     friend class MeshBuilder;
 public:
-    Triangle(glm::vec3 pts[3], glm::vec3 color) : color(color) {
+    Triangle(glm::vec3 pts[3], Material mat) : mat(mat) {
         memcpy(this->pts, pts, sizeof(glm::vec3)*3);
         glm::vec3 u = pts[1] - pts[0];
         glm::vec3 v = pts[2] - pts[0];
-        for(size_t i = 0; i < 3; i++) {
-            normals[i] = glm::normalize(glm::cross(u, v));
-        }
-    }
-
-    void setNormal(glm::vec3 nls[3]) {
-        memcpy(normals, nls, sizeof(glm::vec3)*3);
+        normal = glm::normalize(glm::cross(u, v));
     }
 
     virtual glm::vec3 getNormal(Ray &r, float &t) {
-        glm::vec3 pt = r.origin + r.direction*t;
-        glm::vec3 nearest;
-        float dist = INFINITY;
-        for(glm::vec3 n : normals) {
-            float cdist = glm::distance(pt, n);
-            if(cdist < dist) {
-                nearest = n;
-                dist = cdist;
-            }
-        }
-        return nearest;
+        return normal;
     }
 
     virtual Intersection intersect(Ray &r) {
@@ -247,9 +234,7 @@ public:
             return ret;
         }
         ret.point = r.origin + r.direction*ret.t;
-        ret.normal = getNormal(r, ret.t);
-        Material mat;
-        mat.color = color;
+        ret.normal = getNormal(r, ret.t);;
         ret.mat = mat;
         ret.obj = this;
         return ret;
@@ -260,9 +245,9 @@ public:
     }
 
 private:
+    Material mat;
     glm::vec3 pts[3];
-    glm::vec3 normals[3];
-    glm::vec3 color;
+    glm::vec3 normal;
 };
 
 struct CmpClass // class comparing vertices in the set
@@ -275,69 +260,6 @@ struct CmpClass // class comparing vertices in the set
         return false;
     }
     float eps = 0.0001;
-};
-
-class MeshBuilder {
-public:
-    MeshBuilder(std::vector<Triangle> tris) : tris(tris) {}
-
-    void GenerateNormals() {
-        std::vector<glm::vec3> vertices;
-        std::vector<int> indices;
-        for(Triangle tri : tris) {
-            vertices.push_back(tri.pts[0]);
-            vertices.push_back(tri.pts[1]);
-            vertices.push_back(tri.pts[2]);
-        }
-        std::set<std::pair<glm::vec3, int>, CmpClass> vpairs;
-        int index =  0;
-        for(size_t i = 0; i < vertices.size(); i++) {
-            std::set<std::pair<glm::vec3, int>>::iterator it = vpairs.find(std::make_pair(vertices[i], 0));
-            if(it != vpairs.end()) {
-                indices.push_back(it->second);
-            } else {
-                vpairs.insert(std::make_pair(vertices[i], index));
-                indices.push_back(index++);
-            }
-        }
-        std::vector<glm::vec3> nverts;
-        nverts.resize(vpairs.size());
-        for (auto &kv : vpairs)
-               nverts[kv.second] = kv.first;
-        std::vector<glm::vec3> normals;
-        normals.resize(nverts.size());
-        for(size_t i = 0; i < indices.size(); i += 3) {
-            glm::vec3 e1 = nverts[indices[i+1]] - nverts[indices[i]];
-            glm::vec3 e2 = nverts[indices[i+2]] - nverts[indices[i]];
-            glm::vec3 no = glm::cross(e1, e2);
-            normals[indices[i]] += no;
-            normals[indices[i+1]] += no;
-            normals[indices[i+2]] += no;
-        }
-        for(glm::vec3 &n : normals)
-            n = glm::normalize(n);
-        std::vector<Triangle> newtris;
-        for(size_t i = 0; i < indices.size(); i+= 3) {
-            std::vector<glm::vec3> points;
-            std::vector<glm::vec3> ntri;
-            for(size_t j = 0; j < 3; j++) {
-                points.push_back(nverts[indices[i+j]]);
-                ntri.push_back(normals[indices[i+j]]);
-            }
-            Triangle t(points.data(), glm::vec3(1.0, 1.0, 1.0));
-            t.setNormal(ntri.data() + (i*3));
-            newtris.push_back(t);
-        }
-        tris = newtris;
-
-    }
-
-    std::vector<Triangle> GetTriangles() {
-        return tris;
-    }
-
-private:
-    std::vector<Triangle> tris;
 };
 /*
 class DSphere : public DeviceIntersectable {
@@ -398,6 +320,7 @@ public:
         ret.point = origin + i;
         ret.t = ((ret.point - ray.origin) / ray.direction).x;
         ret.normal = i/radius;
+        //ret.normal = getNormal(ray, ret.t);
         Material mat;
         mat.color = color;
         ret.mat = mat;
@@ -410,14 +333,14 @@ private:
     glm::vec3 color;
 };
 
-__global__
+/*__global__
 void castRay(Ray r, DeviceIntersectable* devptr, size_t nitems) {
     if(threadIdx.x < nitems) {
         DeviceIntersectable *curitem = devptr + threadIdx.x;
         curitem->intersect(r);
     }
 }
-
+*/
 
 class SceneManager {
 public:
@@ -475,12 +398,40 @@ public:
         return glm::vec3(x, y, z);
     }
 
-    void cast(Ray &r, std::vector<Intersection> *hits, bool &anyintersection) {
+    void cast(Ray &r, std::vector<Intersection> *hits, bool &anyintersection, float &attentfactor) {
         for(auto obj : intersectables_cached) {
             Intersection hit = obj->intersect(r);
             if(hit.intersected) {
                 hits->push_back(hit);
                 anyintersection = true;
+            }
+        }
+        std::sort(hits->begin(), hits->end() , [](Intersection a, Intersection b){
+            return b.t > a.t;
+        });
+        if((*hits)[0].mat.reflective) {
+            attentfactor *= 0.9;
+            r.bounces++;
+            if(r.bounces > 2) {
+                hits->clear();
+                anyintersection = false;
+                return;
+            }
+            glm::vec3 n = (*hits)[0].normal;
+            if(glm::dot(n, -r.direction) < 0) {
+                n = -n;
+            }
+            r.origin = (*hits)[0].point + n*0.1f;
+            r.direction = r.direction - (2.0f*n * glm::dot(r.direction, n));
+            hits->clear();
+            bool hit = false;
+            cast(r, hits, hit, attentfactor);
+            anyintersection = false;
+            if(hit) {
+                anyintersection = true;
+                std::sort(hits->begin(), hits->end() , [](Intersection a, Intersection b){
+                    return b.t > a.t;
+                });
             }
         }
     }
@@ -490,10 +441,12 @@ public:
         glm::vec3 localup = glm::cross(camright, config.lookat);
         std::vector<Intersection> hits;
         std::vector<Intersection> shadow_hits;
+        std::vector<Intersection> reflective_hits;
         float aspect = fb.x/(float)fb.y;
         glm::vec3 correctedright = aspect * camright;
         hits.reserve(100);
         shadow_hits.reserve(100);
+        reflective_hits.reserve(100);
         for(size_t x = 0; x < fb.x; x++) {
             for(size_t y = yfirst; y < ylast; y++) {
                 float nx = ((float)x / fb.x) - 0.5;
@@ -503,16 +456,14 @@ public:
                 r.direction = (correctedright * nx) + (-localup * ny) + config.lookat;
                 r.direction = glm::normalize(r.direction);
                 bool anyintersection = false;
-                cast(r, &hits, anyintersection);
+                float afactor = 1.0;
+                cast(r, &hits, anyintersection, afactor);
                 if(!anyintersection) {
-                    fb.fb[((fb.x * y) + x)*3] = 135;
-                    fb.fb[((fb.x * y) + x)*3 + 1] = 206;
-                    fb.fb[((fb.x * y) + x)*3 + 2] = 235;
+                    fb.fb[((fb.x * y) + x)*3] = 100 * afactor;
+                    fb.fb[((fb.x * y) + x)*3 + 1] = 149 * afactor;
+                    fb.fb[((fb.x * y) + x)*3 + 2] = 237 * afactor;
                     continue;
                 }
-                std::sort(hits.begin(), hits.end(), [](Intersection a, Intersection b){
-                    return b.t > a.t;
-                });
                 glm::vec3 fcolor;
                 bool lit = false;
                 for(Light *light : lights) {
@@ -528,12 +479,10 @@ public:
                     glm::vec3 noise = GenerateNoiseVector();
                     s.direction = glm::normalize((light->location - hits[0].point) + noise/(float)(UINT16_MAX*2));
                     bool r = false;
-                    //cast(s, &shadow_hits, r);
-                    std::sort(shadow_hits.begin(), shadow_hits.end(), [](Intersection a, Intersection b){
-                        return b.t > a.t;
-                    });
+                    float notused =  0.0;
+                    cast(s, &shadow_hits, r, notused);
                     if((!r) || (glm::distance(shadow_hits[0].point, s.origin) > glm::distance(s.origin, light->location))) {
-                        fcolor += (((light->color*dt))* hits[0].mat.color);
+                        fcolor += (((light->color*dt))* hits[0].mat.color) * afactor;
                         lit = true;
                     }
                     shadow_hits.clear();
@@ -564,11 +513,9 @@ public:
         }
         size_t ystep = fb.y/8;
         std::vector<std::future<void>> f(8);
+        #pragma omp parallel for
         for(size_t i = 0; i < 8; i++) {
-            f[i] = pool.push(std::bind(&SceneManager::RenderSlice, this, ystep*i, ystep*(i+1), fb));
-        }
-        for(size_t i = 0; i < 8; i++) {
-            f[i].get();
+            RenderSlice(ystep*i, ystep*(i+1), fb);
         }
         //RenderSlice(0, fb.y, fb);
         //RenderSlice(0, fb.y/2, fb);
@@ -603,19 +550,24 @@ int main() {
     GLFWwindow *window;
     window = glfwCreateWindow(1280, 720, "t", NULL, NULL);
     glfwMakeContextCurrent(window);
+    Material reflect;
+    reflect.reflective = true;
+    Material white_unreflective;
+    white_unreflective.color = glm::vec3(1.0, 1.0, 1.0);
     glm::vec3 tris[3] = {glm::vec3(40.0, -3.0, -40.0), glm::vec3(-40.0, -3.0, 40.0), glm::vec3(-40.0, -3.0, -40.0)};
-    Triangle *tri = new Triangle(tris, glm::vec3(1.0, 0.0, 1.0));
+    Triangle *tri = new Triangle(tris, white_unreflective);
     glm::vec3 tris2[3] = {glm::vec3(40.0, -3.0, -40.0), glm::vec3(-40.0, -3.0, 40.0), glm::vec3(40.0, -3.0, 40.0)};
-    Triangle *tri2 = new Triangle(tris2, glm::vec3(1.0, 0.0, 1.0));
+    Triangle *tri2 = new Triangle(tris2, white_unreflective);
+    glm::vec3 trisR1[3] = {glm::vec3(-3.0, 0.25, 15.0), glm::vec3(-3.0, 0.25, -5.0), glm::vec3(-3.0, 8.0, 15.0)};
+    Triangle *triR1 = new Triangle(trisR1, reflect);
+    glm::vec3 trisR2[3] = {glm::vec3(-3.0, 0.25, -5.0), glm::vec3(-3.0, 8.0, -5.0), glm::vec3(-3.0, 8.0, 15.0)};
+    Triangle *triR2 = new Triangle(trisR2, reflect);
     Sphere *s = new Sphere(glm::vec3(0.0, 0.0, 0.0), 2, glm::vec3(0.0, 0.0, 1.0));
     Sphere *s2 = new Sphere(glm::vec3(10.0, 0.0, 0.0), 2, glm::vec3(0.0, 1.0, 0.0));
     Sphere *s3 = new Sphere(glm::vec3(10.0, 0.0, 10.0), 2, glm::vec3(1.0, 0.0, 0.0));
     Light *l = new Light(glm::vec3(-10.0, 8.0, -10.0), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1.0, 0.20));
     Light *l2 = new Light(glm::vec3(10, 10, 10), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1.0, 0.20));
 
-    std::vector<Triangle> triangles;
-    triangles.push_back(*tri);
-    triangles.push_back(*tri2);
     //MeshBuilder b(triangles);
     //b.GenerateNormals();
     //Sphere *s2 = new Sphere(glm::vec3(0.0, -4.0, 0.0), 4);
@@ -625,6 +577,8 @@ int main() {
     man.AddObject(s3);
     man.AddObject(tri);
     man.AddObject(tri2);
+    man.AddObject(triR1);
+    man.AddObject(triR2);
     man.AddLight(l);
     man.AddLight(l2);
     CameraConfig cfg;
@@ -655,15 +609,18 @@ int main() {
     float horizontal = 3.14f;
     float vertical = 0.0f;
     float mspeed = 0.005f;
-    cudaDeviceSynchronize();
+    bool mlocked = true;
+    //cudaDeviceSynchronize();
     while(!glfwWindowShouldClose(window)) {
         l->location.x = sin(frame/32.0)*20;
         l->location.z = cos(frame/32.0)*20;
-        double xpos = 0, ypos = 0;
-        glfwGetCursorPos(window, &xpos, &ypos);
-        glfwSetCursorPos(window, fb.x/2, fb.y/2);
-        horizontal += mspeed * -(fb.x/2 - xpos);
-        vertical += mspeed * (fb.y/2 - ypos);
+        double xpos = fb.x/2, ypos = fb.y/2;
+        if(mlocked) {
+            glfwGetCursorPos(window, &xpos, &ypos);
+            glfwSetCursorPos(window, fb.x/2, fb.y/2);
+            horizontal += mspeed * -(fb.x/2 - xpos);
+            vertical += mspeed * (fb.y/2 - ypos);
+        }
 
         if (vertical > 1.5f) {
             vertical = 1.5f;
@@ -686,7 +643,10 @@ int main() {
         if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
             cfg.center -= right;
         }
-        cudaGetLastError();
+        if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+            mlocked = !mlocked;
+        }
+        //cudaGetLastError();
         man.SetCameraConfig(cfg);
         man.render(fb);
         glClear(GL_COLOR_BUFFER_BIT);
