@@ -5,7 +5,7 @@
 
 class Sphere : public Intersectable {
 public:
-    Sphere(glm::vec3 origin, float radius, glm::vec3 color);
+    Sphere(glm::vec3 origin, float radius, Material mat);
     glm::vec3 getNormal(Ray &ray, float &t);
     Intersection intersect(Ray &ray);
 
@@ -13,10 +13,17 @@ public:
     friend void sphereBoundsFunc(const struct RTCBoundsFunctionArguments* args);
     friend void sphereOccludedFunc(const RTCOccludedFunctionNArguments* args);
     friend void sphereIntersectFunc(const RTCIntersectFunctionNArguments* args);
+
+    Material getMaterial();
+
+    unsigned int getGeomID() const;
+
+    void setGeomID(unsigned int id);
 private:
+    unsigned int geomID;
     glm::vec3 origin;
     float radius;
-    glm::vec3 color;
+    Material mat;
 };
 
 void sphereBoundsFunc(const struct RTCBoundsFunctionArguments* args);

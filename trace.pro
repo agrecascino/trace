@@ -18,4 +18,5 @@ HEADERS += \
 SOURCES += main.cpp \
     triangle.cpp \
     sphere.cpp \
-    scene.cpp
+    scene.cpp \
+    structs.cpp
