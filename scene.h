@@ -29,12 +29,13 @@ public:
 
     void embreecast(RTCRayHit *r, Intersection *hit, unsigned int numrays);
 
+    void inline GenerateScreenVectors(RTCRayHit *r, glm::vec3 correctedright, glm::vec3 localup, size_t xf, size_t yf, size_t xl, size_t yl, int numrays);
 
     void RenderSliceTape(size_t yfirst, size_t ylast, Framebuffer &fb);
 
     void RenderSliceEmbree(size_t yfirst, size_t ylast, Framebuffer &fb);
 
-
+    void SwitchBackend(RenderBackend back);
     void render(Framebuffer &fb);
 
     inline void fast_srand(int seed);

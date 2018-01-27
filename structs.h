@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include "cudapatch.h"
 #include <vector>
+#include <string>
 struct CameraConfig {
     CameraConfig() {}
     CameraConfig(glm::vec3 center, glm::vec3 lookat,
@@ -118,6 +119,8 @@ enum RenderBackend {
     CUDA,
     Phi
 };
+
+extern std::string BackendName[];
 
 class RendererInitializationException : public std::exception {
     virtual const char* what() const throw() {

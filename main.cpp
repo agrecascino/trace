@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
     glewInit();
     glfwInit();
     GLFWwindow *window;
-    window = glfwCreateWindow(960, 540, "t", NULL, NULL);
+    window = glfwCreateWindow(1600, 900, "t", NULL, NULL);
     glfwMakeContextCurrent(window);
     Material reflect;
     reflect.reflective = true;
@@ -50,19 +50,24 @@ int main(int argc, char **argv) {
     Triangle *triR1 = new Triangle(trisR1, reflect);
     glm::vec3 trisR2[3] = {glm::vec3(-3.0, 0.25, -5.0), glm::vec3(-3.0, 8.0, -5.0), glm::vec3(-3.0, 8.0, 15.0)};
     Triangle *triR2 = new Triangle(trisR2, reflect);
-    Sphere *s = new Sphere(glm::vec3(0.0, 0.0, 0.0), 2, glm::vec3(0.0, 0.0, 1.0));
-    Sphere *s2 = new Sphere(glm::vec3(10.0, 0.0, 0.0), 2, glm::vec3(0.0, 1.0, 0.0));
-    Sphere *s3 = new Sphere(glm::vec3(10.0, 0.0, 10.0), 2, glm::vec3(1.0, 0.0, 0.0));
+    Material r, g, b;
+    r.color = glm::vec3(1.0, 0.0, 0.0);
+    g.color = glm::vec3(0.0, 1.0, 0.0);
+    b.color = glm::vec3(0.0, 0.0, 1.0);
+    Sphere *s = new Sphere(glm::vec3(0.0, 0.0, 0.0), 2, b);
+    Sphere *s2 = new Sphere(glm::vec3(10.0, 0.0, 0.0), 2, g);
+    Sphere *s3 = new Sphere(glm::vec3(10.0, 0.0, 10.0), 2, r);
     Light *l = new Light(glm::vec3(-10.0, 8.0, -10.0), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1.0, 0.20));
     Light *l2 = new Light(glm::vec3(10, 10, 10), glm::vec3(0.8, 0.8, 0.8), glm::vec2(1.0, 0.20));
 
     //MeshBuilder b(triangles);
     //b.GenerateNormals();
-    //Sphere *s2 = new Sphere(glm::vec3(0.0, -4.0, 0.0), 4);
-    Scene man(Embree, 4);
-    //man.AddObject(s->optimize());
-    //man.AddObject(s2->optimize());
-    //man.AddObject(s3->optimize());
+    //Sphere *s2 = new Sphere(glm::vec3(0.0, -4.0, 0.0), 4)
+    RenderBackend currentbackend = Embree;
+    Scene man(currentbackend, 4);
+    man.AddObject(s);
+    man.AddObject(s2);
+    man.AddObject(s3);
     man.AddObject(tri);
     man.AddObject(tri2);
     man.AddObject(triR1);
@@ -78,8 +83,8 @@ int main(int argc, char **argv) {
     printVec3(cfg.up);
     man.SetCameraConfig(cfg);
     Framebuffer fb;
-    fb.x = 960;
-    fb.y = 540;
+    fb.x = 1600;
+    fb.y = 900;
     fb.fb = (uint8_t*)malloc(fb.x*fb.y*3);
 
     glMatrixMode(GL_PROJECTION);
@@ -135,6 +140,10 @@ int main(int argc, char **argv) {
         if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
             mlocked = !mlocked;
         }
+        if(glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) {
+            currentbackend = (currentbackend == Embree) ? Rendertape : Embree;
+            man.SwitchBackend(currentbackend);
+        }
         //cudaGetLastError();
         man.SetCameraConfig(cfg);
         man.render(fb);
@@ -147,7 +156,7 @@ int main(int argc, char **argv) {
         glRasterPos2i(0, 94);
         glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)(std::string("Looking at: ") + StringifyVec3(cfg.lookat)).c_str());
         glRasterPos2i(0, 91);
-        glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)(std::string("Embree pls work")).c_str());
+        glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)(std::string("Using backend: ") + BackendName[currentbackend]).c_str());
         glfwSwapBuffers(window);
         glfwPollEvents();
         gettimeofday(&present, NULL);

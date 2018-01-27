@@ -2,6 +2,18 @@
 #include "triangle.h"
 #include "sphere.h"
 #include <fstream>
+static glm::vec3 lerp(const glm::vec3 &v1, const glm::vec3 &v2, const float &r) {
+            return v1 + (v2 - v1) * r;
+}
+
+static glm::vec3 quadlerp(const glm::vec3 &v1,
+                          const glm::vec3 &v2,
+                          const glm::vec3 &v3,
+                          const glm::vec3 &v4,
+                          float u,
+                          float v) {
+    return lerp(lerp(v1, v2, u), lerp(v3, v4, u), v);
+}
 
 Scene::Scene(RenderBackend backend, size_t nthreads) : pool(nthreads), backend(backend) {
     if(backend == Embree)
@@ -58,6 +70,12 @@ void Scene::RemoveObjectsByHandle(OwnedHandle handle) {
     RegenerateObjectCache();
 }
 
+void Scene::SwitchBackend(RenderBackend back) {
+    backend = back;
+    RegenerateObjectCache();
+}
+
+
 void Scene::RegenerateObjectCache() {
     if(backend == Embree) {
         rtcReleaseScene(scene);
@@ -83,10 +101,15 @@ void Scene::RegenerateObjectCache() {
                 geometry[i] = rtcNewGeometry(device, RTC_GEOMETRY_TYPE_USER);
                 rtcSetGeometryUserPrimitiveCount(geometry[i], 1);
                 rtcSetGeometryUserData(geometry[i], intersectables[i]);
-                //RTCBoundsFunction
-
+                rtcSetGeometryBoundsFunction(geometry[i], sphereBoundsFunc, nullptr);
+                rtcSetGeometryOccludedFunction(geometry[i], sphereOccludedFunc);
+                rtcSetGeometryIntersectFunction(geometry[i], sphereIntersectFunc);
+                rtcCommitGeometry(geometry[i]);
+                ((Sphere*)intersectables[i])->setGeomID(rtcAttachGeometry(scene, geometry[i]));
+                rtcReleaseGeometry(geometry[i]);
             }
         }
+        delete[] geometry;
         rtcCommitScene(scene);
     }
 }
@@ -146,6 +169,7 @@ void Scene::RenderSliceTape(size_t yfirst, size_t ylast, Framebuffer &fb) {
         for(size_t y = yfirst; y < ylast; ) {
             uint32_t np = ylast-y;
             Ray r[(np > 7) ? 8 : 1];
+            #pragma omp simd
             for(int i = 0; i < ((np > 7) ? 8: 1); i++) {
                 float nx = ((float)x / fb.x) - 0.5;
                 float ny = ((float)(y+i) / fb.y) - 0.5;
@@ -196,6 +220,26 @@ void Scene::RenderSliceTape(size_t yfirst, size_t ylast, Framebuffer &fb) {
     }
 }
 
+void inline Scene::GenerateScreenVectors(RTCRayHit *r, glm::vec3 correctedright, glm::vec3 localup, size_t xf, size_t yf, size_t xl, size_t yl, int numrays) {
+    #pragma omp parallel for
+    for(int i = 0; i < numrays; i++) {
+        float nx = ((float)xf / xl) - 0.5;
+        float ny = ((float)(yf+i) / yl) - 0.5;
+        glm::vec3 origin = config.center;
+        glm::vec3 direction = (correctedright * nx) + (-localup * ny) + config.lookat;
+        direction = glm::normalize(direction);
+        r[i].ray.dir_x = direction.x;
+        r[i].ray.dir_y = direction.y;
+        r[i].ray.dir_z = direction.z;
+        r[i].ray.org_x = origin.x;
+        r[i].ray.org_y = origin.y;
+        r[i].ray.org_z = origin.z;
+        r[i].ray.time = 0.0;
+        r[i].ray.tnear = 0.0f;
+        r[i].ray.tfar = 65535.0f;
+    }
+}
+
 void Scene::RenderSliceEmbree(size_t yfirst, size_t ylast, Framebuffer &fb) {
     glm::vec3 camright = glm::cross(config.up,config.lookat);
     glm::vec3 localup = glm::cross(camright, config.lookat);
@@ -205,22 +249,7 @@ void Scene::RenderSliceEmbree(size_t yfirst, size_t ylast, Framebuffer &fb) {
         for(size_t y = yfirst; y < ylast; ) {
             uint32_t np = ylast-y;
             RTCRayHit r[(np > 7) ? 8 : 1];
-            for(int i = 0; i < ((np > 7) ? 8: 1); i++) {
-                float nx = ((float)x / fb.x) - 0.5;
-                float ny = ((float)(y+i) / fb.y) - 0.5;
-                glm::vec3 origin = config.center;
-                glm::vec3 direction = (correctedright * nx) + (-localup * ny) + config.lookat;
-                direction = glm::normalize(direction);
-                r[i].ray.dir_x = direction.x;
-                r[i].ray.dir_y = direction.y;
-                r[i].ray.dir_z = direction.z;
-                r[i].ray.org_x = origin.x;
-                r[i].ray.org_y = origin.y;
-                r[i].ray.org_z = origin.z;
-                r[i].ray.time = 0.0;
-                r[i].ray.tnear = 0.0f;
-                r[i].ray.tfar = 65535.0f;
-            }
+            GenerateScreenVectors(r, correctedright, localup, x, y, fb.x, fb.y, (np > 7) ? 8 : 1);
             Intersection hit[(np > 7) ? 8 : 1];
             embreecast(r, hit, (np > 7) ? 8 : 1);
             for(int i = 0; i < ((np > 7) ? 8 : 1); i++) {
