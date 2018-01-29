@@ -1,6 +1,7 @@
 #ifndef SPHERE_H
 #define SPHERE_H
 #include "structs.h"
+#include "scene.h"
 #include <embree3/rtcore.h>
 
 class Sphere : public Intersectable {

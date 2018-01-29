@@ -132,17 +132,42 @@ void Scene::RegenerateObjectCache() {
 
         triangles_buf = new TriangleCL[tricount];
         spheres_buf = new SphereCL[spherecount];
+        lights_buf = new LightCL[lights.size()];
+        for(size_t i = 0; i < lights.size(); i++) {
+            lights_buf[i].color.s[0] = lights[i]->color.x;
+            lights_buf[i].color.s[1] = lights[i]->color.y;
+            lights_buf[i].color.s[2] = lights[i]->color.z;
+            lights_buf[i].pos.s[0] = lights[i]->location.x;
+            lights_buf[i].pos.s[1] = lights[i]->location.y;
+            lights_buf[i].pos.s[2] = lights[i]->location.z;
+
+        }
         int tc = 0;
         int sc = 0;
         for(unsigned long i = 0; i < intersectables.size(); i++) {
             if(typeid(*intersectables[i]) == typeid(Triangle)) {
                 memcpy(triangles_buf[tc].pts, ((Triangle*)intersectables[i])->getVertexBuffer(), 3*sizeof(glm::vec3));
-                triangles_buf[tc].mat = intersectables[i]->getMaterial();
+                MaterialCL m;
+                Material mat = intersectables[i]->getMaterial();
+                m.color.s[0] = mat.color.x;
+                m.color.s[1] = mat.color.y;
+                m.color.s[2] = mat.color.z;
+                m.reflective = mat.reflective;
+                triangles_buf[tc].mat = m;
                 tc++;
             } else if(typeid(*intersectables[i]) == typeid(Sphere)) {
-                spheres_buf[sc].origin = ((Sphere*)intersectables[i])->origin;
+                spheres_buf[sc].origin.s[0] = ((Sphere*)intersectables[i])->origin.x;
+                spheres_buf[sc].origin.s[1] = ((Sphere*)intersectables[i])->origin.x;
+                spheres_buf[sc].origin.s[2] = ((Sphere*)intersectables[i])->origin.x;
+
                 spheres_buf[sc].radius = ((Sphere*)intersectables[i])->radius;
-                spheres_buf[sc].mat = intersectables[i]->getMaterial();
+                MaterialCL m;
+                Material mat = intersectables[i]->getMaterial();
+                m.color.s[0] = mat.color.x;
+                m.color.s[1] = mat.color.y;
+                m.color.s[2] = mat.color.z;
+                m.reflective = mat.reflective;
+                spheres_buf[sc].mat = m;
                 sc++;
             }
         }
@@ -373,7 +398,15 @@ void Scene::render(Framebuffer &fb) {
             clSetKernelArg(kernel, 0, sizeof(buffer), (void*)&buffer);
             clSetKernelArg(kernel, 1, sizeof(cl_uint),(void*)&fb.x);
             clSetKernelArg(kernel, 2, sizeof(cl_uint),(void*)&fb.y);
-            clSetKernelArg(kernel, )
+            clSetKernelArg(kernel, 3, sizeof(cl_uint),(void*)&tricount);
+            clSetKernelArg(kernel, 4, sizeof(cl_uint),(void*)&spherecount);
+            unsigned int lcount = lights.size();
+            clSetKernelArg(kernel, 5, sizeof(cl_tris),(void*)&triangles_buf);
+            clSetKernelArg(kernel, 5, sizeof(cl_spheres),(void*)&spheres_buf);
+            clSetKernelArg(kernel, 5, sizeof(cl_uint),(void*)&lcount);
+            clSetKernelArg(kernel, 5, sizeof(cl_uint),(void*)&lcount);
+            clSetKernelArg(kernel, 5, sizeof(cl_uint),(void*)&lcount);
+
         }
     }
 }
