@@ -10,6 +10,7 @@ public:
     Intersection intersect(Ray &ray);
 
     IntersectableInternalOptimized* optimize();
+    friend int main(int argc, char **argv);
     friend void sphereBoundsFunc(const struct RTCBoundsFunctionArguments* args);
     friend void sphereOccludedFunc(const RTCOccludedFunctionNArguments* args);
     friend void sphereIntersectFunc(const RTCIntersectFunctionNArguments* args);

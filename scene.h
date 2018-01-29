@@ -27,9 +27,9 @@ public:
 
     void tapecast(Ray *r, Intersection *hit, unsigned int numrays);
 
-    void embreecast(RTCRayHit *r, Intersection *hit, unsigned int numrays);
+    void embreecast(RTCRayHit16 *rhit, Intersection *hit, int *valid) ;
 
-    void inline GenerateScreenVectors(RTCRayHit *r, glm::vec3 correctedright, glm::vec3 localup, size_t xf, size_t yf, size_t xl, size_t yl, int numrays);
+    void inline GenerateScreenVectors(RTCRayHit16 *r, glm::vec3 correctedright, glm::vec3 localup, size_t xf, size_t yf, size_t xl, size_t yl, int numrays, int *valid);
 
     void RenderSliceTape(size_t yfirst, size_t ylast, Framebuffer &fb);
 
@@ -46,9 +46,12 @@ public:
 
     ~Scene();
 private:
+    SphereCL *spheres_buf;
+    TriangleCL *triangles_buf;
+    cl_context context;
     cl_command_queue queue;
     cl_kernel kernel;
-    cl_mem buffer, viewTransform, worldTransforms;
+    cl_mem buffer, cl_tris, cl_spheres, cl_lights;
     RenderBackend backend;
     RTCGeometry *geometry = NULL;
     RTCDevice device = rtcNewDevice("verbose=1");
@@ -62,7 +65,6 @@ private:
     unsigned long spherecount = 0;
     std::vector<Light*> lights;
     ctpl::thread_pool pool;
-
 };
 
 

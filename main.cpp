@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
     //MeshBuilder b(triangles);
     //b.GenerateNormals();
     //Sphere *s2 = new Sphere(glm::vec3(0.0, -4.0, 0.0), 4)
-    RenderBackend currentbackend = Embree;
+    RenderBackend currentbackend = OpenCL;
     Scene man(currentbackend, 4);
     man.AddObject(s);
     man.AddObject(s2);
@@ -106,8 +106,9 @@ int main(int argc, char **argv) {
     bool mlocked = true;
     //cudaDeviceSynchronize();
     while(!glfwWindowShouldClose(window)) {
-        l->location.x = sin(frame/32.0)*20;
-        l->location.z = cos(frame/32.0)*20;
+        s->origin.x = sin(frame/32.0)*20;
+        s->origin.z = cos(frame/32.0)*20;
+        man.SwitchBackend(currentbackend);
         double xpos = fb.x/2, ypos = fb.y/2;
         if(mlocked) {
             glfwGetCursorPos(window, &xpos, &ypos);
