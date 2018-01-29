@@ -129,6 +129,7 @@ void Scene::RegenerateObjectCache() {
                 spherecount++;
             }
         }
+
         triangles_buf = new TriangleCL[tricount];
         spheres_buf = new SphereCL[spherecount];
         int tc = 0;
@@ -139,7 +140,10 @@ void Scene::RegenerateObjectCache() {
                 triangles_buf[tc].mat = intersectables[i]->getMaterial();
                 tc++;
             } else if(typeid(*intersectables[i]) == typeid(Sphere)) {
-
+                spheres_buf[sc].origin = ((Sphere*)intersectables[i])->origin;
+                spheres_buf[sc].radius = ((Sphere*)intersectables[i])->radius;
+                spheres_buf[sc].mat = intersectables[i]->getMaterial();
+                sc++;
             }
         }
         cl_tris = clCreateBuffer(context, CL_MEM_READ_ONLY, tricount * sizeof(TriangleCL), NULL, 0);

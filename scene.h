@@ -46,8 +46,9 @@ public:
 
     ~Scene();
 private:
-    SphereCL *spheres_buf;
-    TriangleCL *triangles_buf;
+    SphereCL *spheres_buf = NULL;
+    TriangleCL *triangles_buf = NULL;
+    LightCL *lights_buf = NULL;
     cl_context context;
     cl_command_queue queue;
     cl_kernel kernel;
