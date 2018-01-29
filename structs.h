@@ -4,6 +4,35 @@
 #include "cudapatch.h"
 #include <vector>
 #include <string>
+#include <CL/cl.h>
+
+struct CameraConfigCL {
+    cl_float3 center;
+    cl_float3 lookat;
+    cl_float3 up;
+};
+
+struct MaterialCL {
+    cl_float3 color;
+    cl_int reflective;
+};
+
+struct LightCL {
+    cl_float3 pos;
+    cl_float3 color;
+};
+
+struct SphereCL {
+    MaterialCL mat;
+    cl_float3 origin;
+    cl_float radius;
+};
+
+struct TriangleCL {
+    MaterialCL mat;
+    cl_float3 pts[3];
+};
+
 struct CameraConfig {
     CameraConfig() {}
     CameraConfig(glm::vec3 center, glm::vec3 lookat,
@@ -123,9 +152,15 @@ enum RenderBackend {
 extern std::string BackendName[];
 
 class RendererInitializationException : public std::exception {
+public:
+    RendererInitializationException(std::string error) : error(error) {}
     virtual const char* what() const throw() {
-        return "Renderer failed to initialize";
+        std::string err = "Renderer failed to compile OpenCL code: \n";
+        err += error;
+        return error.c_str();
     }
+private:
+    std::string error;
 };
 
 #endif // STRUCTS_H
