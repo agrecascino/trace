@@ -39,7 +39,7 @@ struct Scene {
     int lightCount;
 };
 
-__kernel void main(__global uchar3 *fb, uint width, uint height, uint tricount, uint spherecount, uint lightcount,
+__kernel void _main(__global uchar3 *fb, uint width, uint height, uint tricount, uint spherecount, uint lightcount,
                      __constant struct Triangle *tris, __constant struct Sphere *spheres, __constant struct Light *lights, struct CameraConfig camera) {
     struct Scene scene;
     scene.triangles = tris;

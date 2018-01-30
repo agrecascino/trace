@@ -21,7 +21,9 @@ Scene::Scene(RenderBackend backend, size_t nthreads) : pool(nthreads), backend(b
         scene = rtcNewScene(device);
     if(backend == OpenCL) {
         cl_platform_id platform;
-        clGetPlatformIDs(1, &platform, NULL);
+        cl_int err;
+        if((err = clGetPlatformIDs(1, &platform, NULL)) != CL_SUCCESS)
+            throw RendererInitializationException("Failed to find platforms. Error: " + std::to_string(err));
         cl_device_id device;
         clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
         context = clCreateContext(NULL, 1, &device, NULL, NULL, NULL);
@@ -46,7 +48,7 @@ Scene::Scene(RenderBackend backend, size_t nthreads) : pool(nthreads), backend(b
 
             throw RendererInitializationException(s);
         }
-        kernel = clCreateKernel(program, "main", NULL);
+        kernel = clCreateKernel(program, "_main", NULL);
     }
     current_id = 0;
     fast_srand(0);
@@ -401,12 +403,21 @@ void Scene::render(Framebuffer &fb) {
             clSetKernelArg(kernel, 3, sizeof(cl_uint),(void*)&tricount);
             clSetKernelArg(kernel, 4, sizeof(cl_uint),(void*)&spherecount);
             unsigned int lcount = lights.size();
-            clSetKernelArg(kernel, 5, sizeof(cl_tris),(void*)&triangles_buf);
-            clSetKernelArg(kernel, 5, sizeof(cl_spheres),(void*)&spheres_buf);
             clSetKernelArg(kernel, 5, sizeof(cl_uint),(void*)&lcount);
-            clSetKernelArg(kernel, 5, sizeof(cl_uint),(void*)&lcount);
-            clSetKernelArg(kernel, 5, sizeof(cl_uint),(void*)&lcount);
-
+            clSetKernelArg(kernel, 6, sizeof(cl_tris),(void*)&cl_tris);
+            clSetKernelArg(kernel, 7, sizeof(cl_spheres),(void*)&cl_spheres);
+            clSetKernelArg(kernel, 8, sizeof(cl_lights),(void*)&cl_lights);
+            size_t worksize = fb.x*fb.y;
+            clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &worksize, NULL, 0, NULL, NULL);
+            cl_uchar3 *ptr = (cl_uchar3*)clEnqueueMapBuffer(queue, buffer, CL_TRUE,
+                                                            CL_MAP_READ, 0, fb.x*fb.y*sizeof(cl_uchar3), 0,
+                                                            NULL, NULL, NULL);
+            for(int i = 0; i < fb.x*fb.y; i++) {
+                fb.fb[i*3] = ptr[i].x;
+                fb.fb[i*3 + 1] = ptr[i].y;
+                fb.fb[i*3 + 2] = ptr[i].z;
+            }
+            break;
         }
     }
 }
