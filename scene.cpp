@@ -3,6 +3,9 @@
 #include "sphere.h"
 #include <fstream>
 #include <string.h>
+#include <GL/glew.h>
+#include <CL/cl_gl.h>
+
 static glm::vec3 lerp(const glm::vec3 &v1, const glm::vec3 &v2, const float &r) {
     return v1 + (v2 - v1) * r;
 }
@@ -386,7 +389,7 @@ void Scene::render(Framebuffer &fb) {
     }
     size_t ystep = fb.y/8;
     std::vector<std::future<void>> f(8);
-#pragma omp parallel for
+//#pragma omp parallel for
     for(size_t i = 0; i < 8; i++) {
         switch(backend) {
         case Rendertape:
@@ -396,7 +399,11 @@ void Scene::render(Framebuffer &fb) {
             RenderSliceEmbree(ystep*i, ystep*(i+1), fb);
             break;
         case OpenCL:
-            buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, fb.x*fb.y*sizeof(cl_uchar3), NULL, 0);
+            GLuint cbuffer;
+            glGenBuffers(1, &cbuffer);
+            glBindBuffer(GL_TEXTURE_BUFFER, cbuffer);
+            glBufferData(cbuffer, fb.x*fb.y*sizeof(cl_uchar3), NULL, GL_DRAW_BUFFER);
+            buffer = clCreateFromGLBuffer(context, CL_MEM_WRITE_ONLY, cbuffer, NULL);
             clSetKernelArg(kernel, 0, sizeof(buffer), (void*)&buffer);
             clSetKernelArg(kernel, 1, sizeof(cl_uint),(void*)&fb.x);
             clSetKernelArg(kernel, 2, sizeof(cl_uint),(void*)&fb.y);
@@ -407,16 +414,34 @@ void Scene::render(Framebuffer &fb) {
             clSetKernelArg(kernel, 6, sizeof(cl_tris),(void*)&cl_tris);
             clSetKernelArg(kernel, 7, sizeof(cl_spheres),(void*)&cl_spheres);
             clSetKernelArg(kernel, 8, sizeof(cl_lights),(void*)&cl_lights);
-            size_t worksize = fb.x*fb.y;
-            clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &worksize, NULL, 0, NULL, NULL);
-            cl_uchar3 *ptr = (cl_uchar3*)clEnqueueMapBuffer(queue, buffer, CL_TRUE,
-                                                            CL_MAP_READ, 0, fb.x*fb.y*sizeof(cl_uchar3), 0,
-                                                            NULL, NULL, NULL);
-            for(int i = 0; i < fb.x*fb.y; i++) {
-                fb.fb[i*3] = ptr[i].x;
-                fb.fb[i*3 + 1] = ptr[i].y;
-                fb.fb[i*3 + 2] = ptr[i].z;
-            }
+            CameraConfigCL cam;
+            cam.center.s[0] = config.center.x;
+            cam.center.s[1] = config.center.y;
+            cam.center.s[2] = config.center.z;
+            cam.lookat.s[0] = config.lookat.x;
+            cam.lookat.s[1] = config.lookat.y;
+            cam.lookat.s[2] = config.lookat.z;
+            cam.up.s[0] = config.up.x;
+            cam.up.s[1] = config.up.y;
+            cam.up.s[2] = config.up.z;
+
+            clSetKernelArg(kernel, 9, sizeof(CameraConfigCL),(void*)&cam);
+            size_t worksize[2] = {fb.x, fb.y};
+            clEnqueueNDRangeKernel(queue, kernel, 2, NULL, worksize, NULL, 0, NULL, NULL);
+            clFinish(queue);
+            clReleaseMemObject(buffer);
+            glDeleteBuffers(1, &cbuffer);
+//            cl_uchar3 *ptr = (cl_uchar3*)clEnqueueMapBuffer(queue, buffer, CL_TRUE,
+//                                                            CL_MAP_READ, 0, fb.x*fb.y*sizeof(cl_uchar3), 0,
+//                                                            NULL, NULL, NULL);
+//            for(size_t i = 0; i < fb.x*fb.y; i++) {
+//                fb.fb[i*3] = ptr[i].x;
+//                fb.fb[i*3 + 1] = ptr[i].y;
+//                fb.fb[i*3 + 2] = ptr[i].z;
+//            }
+//            clEnqueueUnmapMemObject(queue, buffer, ptr, 0, 0, 0);
+//            clReleaseMemObject(buffer);
+
             break;
         }
     }
