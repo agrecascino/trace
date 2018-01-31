@@ -32,11 +32,11 @@ int main(int argc, char **argv) {
     glutInit(&argc, argv);
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
-    glewInit();
     glfwInit();
     GLFWwindow *window;
     window = glfwCreateWindow(1600, 900, "t", NULL, NULL);
     glfwMakeContextCurrent(window);
+    glewInit();
     Material reflect;
     reflect.reflective = true;
     reflect.color = glm::vec3(0.0, 0.7, 0.0);
