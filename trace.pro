@@ -5,7 +5,7 @@ CONFIG -= qt
 
 LIBS += -lGLEW -lglfw -lGL -lgomp -lGLU -lpthread -lembree3 -lglut -lOpenCL
 
-QMAKE_CXXFLAGS = -fopenmp -std=c++14 -ffast-math -O0 -pthread
+QMAKE_CXXFLAGS = -fopenmp -std=c++14 -ffast-math -O2 -pthread
 
 HEADERS += \
     ctpl.h \
