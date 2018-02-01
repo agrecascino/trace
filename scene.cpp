@@ -389,7 +389,6 @@ void Scene::render(Framebuffer &fb) {
     }
     size_t ystep = fb.y/8;
     std::vector<std::future<void>> f(8);
-//#pragma omp parallel for
     for(size_t i = 0; i < 8; i++) {
         switch(backend) {
         case Rendertape:
@@ -399,11 +398,20 @@ void Scene::render(Framebuffer &fb) {
             RenderSliceEmbree(ystep*i, ystep*(i+1), fb);
             break;
         case OpenCL:
-            GLuint cbuffer;
-            glGenBuffers(1, &cbuffer);
-            glBindBuffer(GL_TEXTURE_BUFFER, cbuffer);
-            glBufferData(cbuffer, fb.x*fb.y*sizeof(cl_uchar3), NULL, GL_DRAW_BUFFER);
-            buffer = clCreateFromGLBuffer(context, CL_MEM_WRITE_ONLY, cbuffer, NULL);
+            GLuint ctexture;
+            glGenTextures(1, &ctexture);
+            glBindTexture(GL_TEXTURE_2D, ctexture);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, fb.x, fb.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+            //glBufferData(cbuffer, fb.x*fb.y*sizeof(cl_uchar3), NULL, GL_DRAW_BUFFER);
+            buffer = clCreateFromGLTexture(context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, ctexture, NULL);
+            glFinish();
+            clEnqueueAcquireGLObjects(queue, 1, &buffer, 0, NULL, NULL);
+            //buffer = clCreateFromGLBuffer(context, CL_MEM_WRITE_ONLY, cbuffer, NULL);
+            //buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, fb.x*fb.y*sizeof(cl_uchar3), NULL, NULL);
             clSetKernelArg(kernel, 0, sizeof(buffer), (void*)&buffer);
             clSetKernelArg(kernel, 1, sizeof(cl_uint),(void*)&fb.x);
             clSetKernelArg(kernel, 2, sizeof(cl_uint),(void*)&fb.y);
@@ -420,6 +428,7 @@ void Scene::render(Framebuffer &fb) {
             cam.center.s[2] = config.center.z;
             cam.lookat.s[0] = config.lookat.x;
             cam.lookat.s[1] = config.lookat.y;
+
             cam.lookat.s[2] = config.lookat.z;
             cam.up.s[0] = config.up.x;
             cam.up.s[1] = config.up.y;
@@ -429,8 +438,8 @@ void Scene::render(Framebuffer &fb) {
             size_t worksize[2] = {fb.x, fb.y};
             clEnqueueNDRangeKernel(queue, kernel, 2, NULL, worksize, NULL, 0, NULL, NULL);
             clFinish(queue);
-            clReleaseMemObject(buffer);
-            glDeleteBuffers(1, &cbuffer);
+            clEnqueueReleaseGLObjects(queue, 1, &buffer, 0, 0, NULL);
+            glDeleteTextures(1, &ctexture);
 //            cl_uchar3 *ptr = (cl_uchar3*)clEnqueueMapBuffer(queue, buffer, CL_TRUE,
 //                                                            CL_MAP_READ, 0, fb.x*fb.y*sizeof(cl_uchar3), 0,
 //                                                            NULL, NULL, NULL);
