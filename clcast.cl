@@ -39,7 +39,7 @@ struct Scene {
     int lightCount;
 };
 
-__kernel void _main(__global uchar3 *fb, uint width, uint height, uint tricount, uint spherecount, uint lightcount,
+__kernel void _main(__write_only image2d_t img, uint width, uint height, uint tricount, uint spherecount, uint lightcount,
                      __constant struct Triangle *tris, __constant struct Sphere *spheres, __constant struct Light *lights, struct CameraConfig camera) {
     struct Scene scene;
     scene.triangles = tris;
@@ -51,14 +51,15 @@ __kernel void _main(__global uchar3 *fb, uint width, uint height, uint tricount,
     float dx = 1.0f / (float)width;
     float dy = 1.0f / (float)height;
     float x = (float)(get_global_id(0) % width) / (float)(width);
-	float y = (float)(get_global_id(0) / width) / (float)(height);
-	float3 camright = cross(camera.up, camera.lookat) * ((float)width/height);
-	x = x -0.5f;
-	y = y -0.5f;
-				
-	struct Ray r;
-	r.origin = camera.center;
-	r.direction    = normalize(camright*x + (-camera.up * y) + camera.lookat);
-	uchar3 color = /*raytrace(&r, &scene, 0)*/ { 255, 255, 255};
-	fb[get_global_id(0)] += color;
+	
+    float y = (float)(get_global_id(0) / width) / (float)(height);	
+    float3 camright = cross(camera.up, camera.lookat) * ((float)width/height);
+    x = x -0.5f;
+    y = y -0.5f;				
+    struct Ray r;
+    r.origin = camera.center;   
+    r.direction    = normalize(camright*x + (-camera.up * y) + camera.lookat);
+    float4 color = /*raytrace(&r, &scene, 0)*/ { 1.0, 1.0, 1.0, 1.0};
+    int2 xy = {(get_global_id(0) % width), (get_global_id(0) / width)};
+    write_imagef(img, xy, color);
 }                                 

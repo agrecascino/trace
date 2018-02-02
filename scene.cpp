@@ -5,6 +5,17 @@
 #include <string.h>
 #include <GL/glew.h>
 #include <CL/cl_gl.h>
+#include <iostream>
+#include <GL/glx.h>
+
+static cl_int cl_err = 0;
+static void stateok() {
+    int state = glGetError();
+    assert(state == GL_NO_ERROR);
+    if(cl_err != CL_SUCCESS)
+        std::cout << cl_err << std::endl;
+    assert(cl_err == CL_SUCCESS);
+}
 
 static glm::vec3 lerp(const glm::vec3 &v1, const glm::vec3 &v2, const float &r) {
     return v1 + (v2 - v1) * r;
@@ -28,8 +39,18 @@ Scene::Scene(RenderBackend backend, size_t nthreads) : pool(nthreads), backend(b
         if((err = clGetPlatformIDs(1, &platform, NULL)) != CL_SUCCESS)
             throw RendererInitializationException("Failed to find platforms. Error: " + std::to_string(err));
         cl_device_id device;
+        cl_context_properties props[] =
+        {
+            CL_GL_CONTEXT_KHR,
+            (cl_context_properties)glXGetCurrentContext(),
+            CL_GLX_DISPLAY_KHR,
+            (cl_context_properties)glXGetCurrentDisplay(),
+            CL_CONTEXT_PLATFORM,
+            (cl_context_properties)platform,
+            0
+        };
         clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
-        context = clCreateContext(NULL, 1, &device, NULL, NULL, NULL);
+        context = clCreateContext(props, 1, &device, NULL, NULL, NULL);
         queue = clCreateCommandQueue(context, device, 0, NULL);
         std::ifstream file("clcast.cl");
         std::string source;
@@ -400,28 +421,47 @@ void Scene::render(Framebuffer &fb) {
         case OpenCL:
             GLuint ctexture;
             glGenTextures(1, &ctexture);
+            stateok();
             glBindTexture(GL_TEXTURE_2D, ctexture);
+            stateok();
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            stateok();
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            stateok();
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            stateok();
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            stateok();
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, fb.x, fb.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+            stateok();
             //glBufferData(cbuffer, fb.x*fb.y*sizeof(cl_uchar3), NULL, GL_DRAW_BUFFER);
-            buffer = clCreateFromGLTexture(context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, ctexture, NULL);
+            buffer = clCreateFromGLTexture(context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, ctexture, &cl_err);
+            stateok();
             glFinish();
-            clEnqueueAcquireGLObjects(queue, 1, &buffer, 0, NULL, NULL);
+            stateok();
+            cl_err = clEnqueueAcquireGLObjects(queue, 1, &buffer, 0, NULL, NULL);
+            stateok();
             //buffer = clCreateFromGLBuffer(context, CL_MEM_WRITE_ONLY, cbuffer, NULL);
             //buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, fb.x*fb.y*sizeof(cl_uchar3), NULL, NULL);
-            clSetKernelArg(kernel, 0, sizeof(buffer), (void*)&buffer);
-            clSetKernelArg(kernel, 1, sizeof(cl_uint),(void*)&fb.x);
-            clSetKernelArg(kernel, 2, sizeof(cl_uint),(void*)&fb.y);
-            clSetKernelArg(kernel, 3, sizeof(cl_uint),(void*)&tricount);
-            clSetKernelArg(kernel, 4, sizeof(cl_uint),(void*)&spherecount);
+            cl_err = clSetKernelArg(kernel, 0, sizeof(buffer), (void*)&buffer);
+            stateok();
+            cl_err = clSetKernelArg(kernel, 1, sizeof(cl_uint),(void*)&fb.x);
+            stateok();
+            cl_err = clSetKernelArg(kernel, 2, sizeof(cl_uint),(void*)&fb.y);
+            stateok();
+            cl_err = clSetKernelArg(kernel, 3, sizeof(cl_uint),(void*)&tricount);
+            stateok();
+            cl_err = clSetKernelArg(kernel, 4, sizeof(cl_uint),(void*)&spherecount);
+            stateok();
             unsigned int lcount = lights.size();
-            clSetKernelArg(kernel, 5, sizeof(cl_uint),(void*)&lcount);
-            clSetKernelArg(kernel, 6, sizeof(cl_tris),(void*)&cl_tris);
-            clSetKernelArg(kernel, 7, sizeof(cl_spheres),(void*)&cl_spheres);
-            clSetKernelArg(kernel, 8, sizeof(cl_lights),(void*)&cl_lights);
+            cl_err = clSetKernelArg(kernel, 5, sizeof(cl_uint),(void*)&lcount);
+            stateok();
+            cl_err = clSetKernelArg(kernel, 6, sizeof(cl_tris),(void*)&cl_tris);
+            stateok();
+            cl_err = clSetKernelArg(kernel, 7, sizeof(cl_spheres),(void*)&cl_spheres);
+            stateok();
+            cl_err = clSetKernelArg(kernel, 8, sizeof(cl_lights),(void*)&cl_lights);
+            stateok();
             CameraConfigCL cam;
             cam.center.s[0] = config.center.x;
             cam.center.s[1] = config.center.y;
@@ -434,12 +474,18 @@ void Scene::render(Framebuffer &fb) {
             cam.up.s[1] = config.up.y;
             cam.up.s[2] = config.up.z;
 
-            clSetKernelArg(kernel, 9, sizeof(CameraConfigCL),(void*)&cam);
+            cl_err = clSetKernelArg(kernel, 9, sizeof(CameraConfigCL),(void*)&cam);
+            glFinish();
+            stateok();
             size_t worksize[2] = {fb.x, fb.y};
-            clEnqueueNDRangeKernel(queue, kernel, 2, NULL, worksize, NULL, 0, NULL, NULL);
+            cl_err = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, worksize, NULL, 0, NULL, NULL);
+            stateok();
             clFinish(queue);
-            clEnqueueReleaseGLObjects(queue, 1, &buffer, 0, 0, NULL);
+            stateok();
+            cl_err = clEnqueueReleaseGLObjects(queue, 1, &buffer, 0, 0, NULL);
+            stateok();
             glDeleteTextures(1, &ctexture);
+            stateok();
 //            cl_uchar3 *ptr = (cl_uchar3*)clEnqueueMapBuffer(queue, buffer, CL_TRUE,
 //                                                            CL_MAP_READ, 0, fb.x*fb.y*sizeof(cl_uchar3), 0,
 //                                                            NULL, NULL, NULL);
