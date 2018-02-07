@@ -54,6 +54,7 @@ int main(int argc, char **argv) {
     r.color = glm::vec3(1.0, 0.0, 0.0);
     g.color = glm::vec3(0.0, 1.0, 0.0);
     b.color = glm::vec3(0.0, 0.0, 1.0);
+    b.reflective = true;
     Sphere *s = new Sphere(glm::vec3(0.0, 0.0, 0.0), 2, b);
     Sphere *s2 = new Sphere(glm::vec3(10.0, 0.0, 0.0), 2, g);
     Sphere *s3 = new Sphere(glm::vec3(10.0, 0.0, 10.0), 2, r);
@@ -72,10 +73,11 @@ int main(int argc, char **argv) {
     man.AddObject(tri2);
     man.AddObject(triR1);
     man.AddObject(triR2);
+    man.AddObject(triR2);
     man.AddLight(l);
     man.AddLight(l2);
     CameraConfig cfg;
-    cfg.center = glm::vec3(16.0, 4.0, 16.0);
+    cfg.center = glm::vec3(12.0, 4.0, 12.0);
     printVec3(cfg.center);
     cfg.lookat  = glm::normalize(glm::vec3(0.0, 0.0, 0.0) - cfg.center);
     printVec3(cfg.lookat);
@@ -103,12 +105,19 @@ int main(int argc, char **argv) {
     float horizontal = 3.14f;
     float vertical = 0.0f;
     float mspeed = 0.005f;
+    int lastfps;
     bool mlocked = true;
     //cudaDeviceSynchronize();
+    float lasttime = glfwGetTime();
+    man.RegenerateObjectCache();
     while(!glfwWindowShouldClose(window)) {
-        s->origin.x = sin(frame/32.0)*20;
-        s->origin.z = cos(frame/32.0)*20;
-        man.SwitchBackend(currentbackend);
+        float tdiff = (glfwGetTime() - lasttime)*32;
+        lasttime = glfwGetTime();
+        glm::mat4x4 mat;
+        mat[0][3]= sin(glfwGetTime()/2.0)*20;
+        mat[2][3] = cos(glfwGetTime()/2.0)*20;
+        s->setTransform(mat);
+        man.RegenerateObjectPositions();
         double xpos = fb.x/2, ypos = fb.y/2;
         if(mlocked) {
             glfwGetCursorPos(window, &xpos, &ypos);
@@ -123,20 +132,22 @@ int main(int argc, char **argv) {
         else if (vertical < -1.5f) {
             vertical = -1.5f;
         }
-        cfg.lookat = glm::vec3(cos(vertical) * sin(horizontal), sin(vertical), cos(horizontal) * cos(vertical));
+        //cfg.lookat = glm::vec3(cos(vertical) * sin(horizontal), sin(vertical), cos(horizontal) * cos(vertical));
         glm::vec3 right = glm::vec3(sin(horizontal - 3.14f / 2.0f), 0, cos(horizontal - 3.14f / 2.0f));
-        cfg.up = glm::cross(right, cfg.lookat);
+        //cfg.up = glm::cross(right, cfg.lookat);
+        cfg.up = glm::vec3(0.0, 1.0, 0.0);
+        cfg.lookat = glm::normalize(glm::vec3(mat[0][3], 0.0, mat[2][3]) - cfg.center);
         if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-            cfg.center += cfg.lookat;
+            cfg.center += cfg.lookat*tdiff;
         }
         if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-            cfg.center -= cfg.lookat;
+            cfg.center -= cfg.lookat*tdiff;
         }
         if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-            cfg.center += right;
+            cfg.center += right*tdiff;
         }
         if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-            cfg.center -= right;
+            cfg.center -= right*tdiff;
         }
         if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
             mlocked = !mlocked;
@@ -148,9 +159,9 @@ int main(int argc, char **argv) {
         //cudaGetLastError();
         man.SetCameraConfig(cfg);
         man.render(fb);
-        glClear(GL_COLOR_BUFFER_BIT);
+        //glClear(GL_COLOR_BUFFER_BIT);
         glRasterPos2i(0,0);
-        glDrawPixels(fb.x, fb.y, GL_RGB, GL_UNSIGNED_BYTE, fb.fb);
+        //glDrawPixels(fb.x, fb.y, GL_RGB, GL_UNSIGNED_BYTE, fb.fb);
         glColor3f(1.0, 1.0, 1.0);
         glRasterPos2i(0, 97);
         glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)(std::string("Location: ") + StringifyVec3(cfg.center)).c_str());
@@ -158,6 +169,8 @@ int main(int argc, char **argv) {
         glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)(std::string("Looking at: ") + StringifyVec3(cfg.lookat)).c_str());
         glRasterPos2i(0, 91);
         glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)(std::string("Using backend: ") + BackendName[currentbackend]).c_str());
+        glRasterPos2i(0, 88);
+        glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)("t - " + std::to_string(lastfps) + " FPS").c_str());
         glfwSwapBuffers(window);
         glfwPollEvents();
         gettimeofday(&present, NULL);
@@ -165,6 +178,7 @@ int main(int argc, char **argv) {
             int fps = (frame - prevframe);
             std::string title = "t - " + std::to_string(fps) + " FPS";
             prevframe = frame;
+            lastfps = fps;
             glfwSetWindowTitle(window, title.c_str());
             past = present;
         }

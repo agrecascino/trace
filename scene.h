@@ -17,6 +17,8 @@ public:
 
     void RemoveObjectsByHandle(OwnedHandle handle);
 
+    void RegenerateObjectPositions();
+
     void RegenerateObjectCache();
 
     void AddLight(Light* obj);
@@ -49,16 +51,18 @@ private:
     SphereCL *spheres_buf = NULL;
     TriangleCL *triangles_buf = NULL;
     LightCL *lights_buf = NULL;
+    cl_float16 *tpos = NULL;
+    cl_float16 *spos = NULL;
+    cl_float16 *lpos = NULL;
     cl_context context;
     cl_command_queue queue;
     cl_kernel kernel;
-    cl_mem buffer, cl_tris, cl_spheres, cl_lights;
+    cl_mem buffer, cl_tris, cl_spheres, cl_lights, cl_tripos, cl_spherepos, cl_lightpos;
     RenderBackend backend;
     RTCGeometry *geometry = NULL;
     RTCDevice device = rtcNewDevice("verbose=1");
     RTCScene scene;
     unsigned int g_seed;
-    bool frun = true;
     std::atomic<size_t> current_id;
     CameraConfig config;
     std::unordered_map<size_t, Intersectable*> intersectables;

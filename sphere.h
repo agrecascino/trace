@@ -24,7 +24,6 @@ public:
     void setGeomID(unsigned int id);
 private:
     unsigned int geomID;
-    glm::vec3 origin;
     float radius;
     Material mat;
 };
