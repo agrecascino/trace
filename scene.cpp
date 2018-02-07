@@ -57,6 +57,7 @@ Scene::Scene(RenderBackend backend, size_t nthreads) : pool(nthreads), backend(b
         std::string line;
         while(std::getline(file, line)) {
             source += line;
+            source += "\n";
         }
         cl_ulong maxSize;
         clGetDeviceInfo(device, CL_DEVICE_MAX_MEM_ALLOC_SIZE, sizeof(cl_ulong), &maxSize, 0);
@@ -109,6 +110,90 @@ void Scene::SwitchBackend(RenderBackend back) {
     RegenerateObjectCache();
 }
 
+void Scene::RegenerateObjectPositions() {
+    if(backend == OpenCL) {
+        if(spos) {
+            clReleaseMemObject(cl_spherepos);
+            delete[] spos;
+        }
+        if(tpos) {
+            clReleaseMemObject(cl_tripos);
+            delete[] tpos;
+        }
+        if(lpos) {
+            clReleaseMemObject(cl_lightpos);
+            delete[] lpos;
+        }
+        spos = new cl_float16[spherecount];
+        tpos = new cl_float16[tricount];
+        lpos = new cl_float16[lights.size()];
+        unsigned long is = 0, it = 0;
+        for(unsigned long i = 0; i < intersectables.size(); i++) {
+            if(typeid(*intersectables[i]) == typeid(Triangle)) {
+                glm::mat4x4 m = intersectables[i]->getTransform();
+                tpos[it].s0 = m[0][0];
+                tpos[it].s1 = m[1][0];
+                tpos[it].s2 = m[2][0];
+                tpos[it].s3 = m[3][0];
+                tpos[it].s4 = m[0][1];
+                tpos[it].s5 = m[1][1];
+                tpos[it].s6 = m[2][1];
+                tpos[it].s7 = m[3][1];
+                tpos[it].s8 = m[0][2];
+                tpos[it].s9 = m[1][2];
+                tpos[it].sa = m[2][2];
+                tpos[it].sb = m[3][2];
+                tpos[it].sc = m[0][3];
+                tpos[it].sd = m[1][3];
+                tpos[it].se = m[2][3];
+                tpos[it].sf = m[3][3];
+                it++;
+            } else if(typeid(*intersectables[i]) == typeid(Sphere)) {
+                glm::mat4x4 m = intersectables[i]->getTransform();
+                spos[is].s0 = m[0][0];
+                spos[is].s1 = m[1][0];
+                spos[is].s2 = m[2][0];
+                spos[is].s3 = m[3][0];
+                spos[is].s4 = m[0][1];
+                spos[is].s5 = m[1][1];
+                spos[is].s6 = m[2][1];
+                spos[is].s7 = m[3][1];
+                spos[is].s8 = m[0][2];
+                spos[is].s9 = m[1][2];
+                spos[is].sa = m[2][2];
+                spos[is].sb = m[3][2];
+                spos[is].sc = m[0][3];
+                spos[is].sd = m[1][3];
+                spos[is].se = m[2][3];
+                spos[is].sf = m[3][3];
+                is++;
+            }
+        }
+        for(unsigned long i = 0; i < lights.size(); i++) {
+            glm::mat4x4 m = lights[i]->transform;
+            lpos[i].s0 = m[0][0];
+            lpos[i].s1 = m[1][0];
+            lpos[i].s2 = m[2][0];
+            lpos[i].s3 = m[3][0];
+            lpos[i].s4 = m[0][1];
+            lpos[i].s5 = m[1][1];
+            lpos[i].s6 = m[2][1];
+            lpos[i].s7 = m[3][1];
+            lpos[i].s8 = m[0][2];
+            lpos[i].s9 = m[1][2];
+            lpos[i].sa = m[2][2];
+            lpos[i].sb = m[3][2];
+            lpos[i].sc = m[0][3];
+            lpos[i].sd = m[1][3];
+            lpos[i].se = m[2][3];
+            lpos[i].sf = m[3][3];
+        }
+        cl_tripos = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, (tricount * sizeof(cl_float16)), tpos, NULL);
+        cl_spherepos = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, (spherecount * sizeof(cl_float16)), spos, NULL);
+        cl_lightpos = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, (lights.size() * sizeof(cl_float16)), lpos, NULL);
+
+    }
+}
 
 void Scene::RegenerateObjectCache() {
     if(backend == Embree) {
@@ -155,7 +240,18 @@ void Scene::RegenerateObjectCache() {
                 spherecount++;
             }
         }
-
+        if(triangles_buf) {
+            clReleaseMemObject(cl_tris);
+            delete[] triangles_buf;
+        }
+        if(spheres_buf) {
+            clReleaseMemObject(cl_spheres);
+            delete[] spheres_buf;
+        }
+        if(lights_buf) {
+            clReleaseMemObject(cl_lights);
+            delete[] lights_buf;
+        }
         triangles_buf = new TriangleCL[tricount];
         spheres_buf = new SphereCL[spherecount];
         lights_buf = new LightCL[lights.size()];
@@ -163,16 +259,20 @@ void Scene::RegenerateObjectCache() {
             lights_buf[i].color.s[0] = lights[i]->color.x;
             lights_buf[i].color.s[1] = lights[i]->color.y;
             lights_buf[i].color.s[2] = lights[i]->color.z;
-            lights_buf[i].pos.s[0] = lights[i]->location.x;
-            lights_buf[i].pos.s[1] = lights[i]->location.y;
-            lights_buf[i].pos.s[2] = lights[i]->location.z;
-
         }
         int tc = 0;
         int sc = 0;
         for(unsigned long i = 0; i < intersectables.size(); i++) {
             if(typeid(*intersectables[i]) == typeid(Triangle)) {
-                memcpy(triangles_buf[tc].pts, ((Triangle*)intersectables[i])->getVertexBuffer(), 3*sizeof(glm::vec3));
+                triangles_buf[tc].pts[0].x = ((Triangle*)intersectables[i])->getVertexBuffer()[0];
+                triangles_buf[tc].pts[0].y = ((Triangle*)intersectables[i])->getVertexBuffer()[1];
+                triangles_buf[tc].pts[0].z = ((Triangle*)intersectables[i])->getVertexBuffer()[2];
+                triangles_buf[tc].pts[1].x = ((Triangle*)intersectables[i])->getVertexBuffer()[3];
+                triangles_buf[tc].pts[1].y = ((Triangle*)intersectables[i])->getVertexBuffer()[4];
+                triangles_buf[tc].pts[1].z = ((Triangle*)intersectables[i])->getVertexBuffer()[5];
+                triangles_buf[tc].pts[2].x = ((Triangle*)intersectables[i])->getVertexBuffer()[6];
+                triangles_buf[tc].pts[2].y = ((Triangle*)intersectables[i])->getVertexBuffer()[7];
+                triangles_buf[tc].pts[2].z = ((Triangle*)intersectables[i])->getVertexBuffer()[8];
                 MaterialCL m;
                 Material mat = intersectables[i]->getMaterial();
                 m.color.s[0] = mat.color.x;
@@ -182,10 +282,6 @@ void Scene::RegenerateObjectCache() {
                 triangles_buf[tc].mat = m;
                 tc++;
             } else if(typeid(*intersectables[i]) == typeid(Sphere)) {
-                spheres_buf[sc].origin.s[0] = ((Sphere*)intersectables[i])->origin.x;
-                spheres_buf[sc].origin.s[1] = ((Sphere*)intersectables[i])->origin.x;
-                spheres_buf[sc].origin.s[2] = ((Sphere*)intersectables[i])->origin.x;
-
                 spheres_buf[sc].radius = ((Sphere*)intersectables[i])->radius;
                 MaterialCL m;
                 Material mat = intersectables[i]->getMaterial();
@@ -197,10 +293,10 @@ void Scene::RegenerateObjectCache() {
                 sc++;
             }
         }
-        cl_tris = clCreateBuffer(context, CL_MEM_READ_ONLY, tricount * sizeof(TriangleCL), NULL, 0);
-        cl_lights = clCreateBuffer(context, CL_MEM_READ_ONLY, lights.size() * sizeof(LightCL), NULL, 0);
-        cl_spheres = clCreateBuffer(context, CL_MEM_READ_ONLY, spherecount * sizeof(TriangleCL), NULL, 0);
-
+        RegenerateObjectPositions();
+        cl_tris = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, tricount * sizeof(TriangleCL), triangles_buf, 0);
+        cl_lights = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, lights.size() * sizeof(LightCL), lights_buf, 0);
+        cl_spheres = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, spherecount * sizeof(TriangleCL), spheres_buf, 0);
     }
 }
 
@@ -284,7 +380,8 @@ void Scene::RenderSliceTape(size_t yfirst, size_t ylast, Framebuffer &fb) {
                 if(!hit[i].intersected)
                     continue;
                 for(Light *light : lights) {
-                    glm::vec3 l = light->location - hit[i].point;
+                    glm::vec3 lightlocation = glm::vec3(light->transform[0][3], light->transform[1][3], light->transform[2][3]);
+                    glm::vec3 l = lightlocation - hit[i].point;
                     glm::vec3 n = hit[i].normal;
                     if(glm::dot(n, -r[i].direction) < 0) {
                         n = -n;
@@ -292,10 +389,10 @@ void Scene::RenderSliceTape(size_t yfirst, size_t ylast, Framebuffer &fb) {
                     float dt = glm::dot(glm::normalize(l), n);
                     Ray s;
                     s.origin = glm::vec3(hit[i].point) + (n * 0.001f);
-                    s.direction = glm::normalize((light->location - hit[i].point));
+                    s.direction = glm::normalize((lightlocation - hit[i].point));
                     Intersection s_hit;
                     tapecast(&s, &s_hit, 1);
-                    if((!s_hit.intersected) || (glm::distance(s_hit.point, s.origin) > glm::distance(s.origin, light->location))) {
+                    if((!s_hit.intersected) || (glm::distance(s_hit.point, s.origin) > glm::distance(s.origin, lightlocation))) {
                         fcolor[i] += (((light->color*dt))* hit[i].mat.color);
                     }
                 }
@@ -359,7 +456,8 @@ void Scene::RenderSliceEmbree(size_t yfirst, size_t ylast, Framebuffer &fb) {
                 if(!hit[i].intersected)
                     continue;
                 for(Light *light : lights) {
-                    glm::vec3 l = light->location - hit[i].point;
+                    glm::vec3 lightlocation = glm::vec3(light->transform[0][3], light->transform[1][3], light->transform[2][3]);
+                    glm::vec3 l = lightlocation - hit[i].point;
                     glm::vec3 n = hit[i].normal;
                     glm::vec3 rdirect = glm::vec3(r.ray.dir_x[i], r.ray.dir_y[i], r.ray.dir_z[i]);
                     if(glm::dot(n, -rdirect) < 0) {
@@ -371,7 +469,7 @@ void Scene::RenderSliceEmbree(size_t yfirst, size_t ylast, Framebuffer &fb) {
                     memset(valid, 0, 16);
                     valid[0] = -1;
                     glm::vec3 origin = glm::vec3(hit[i].point) + (n * 0.001f);
-                    glm::vec3 direction = glm::normalize((light->location - hit[i].point));
+                    glm::vec3 direction = glm::normalize((lightlocation - hit[i].point));
                     //                    s.ray.dir_x[0] = direction.x;
                     //                    s.ray.dir_y[0] = direction.y;
                     //                    s.ray.dir_z[0] = direction.z;
@@ -386,7 +484,7 @@ void Scene::RenderSliceEmbree(size_t yfirst, size_t ylast, Framebuffer &fb) {
                     Intersection s_hit;
                     //embreecast(&s, &s_hit, valid);
                     tapecast(&r, &s_hit, 1);
-                    if((!s_hit.intersected) || (glm::distance(s_hit.point, origin) > glm::distance(origin, light->location))) {
+                    if((!s_hit.intersected) || (glm::distance(s_hit.point, origin) > glm::distance(origin, lightlocation))) {
                         fcolor[i] += ((light->color*dt)* hit[i].mat.color);
                     }
                 }
@@ -418,7 +516,8 @@ void Scene::render(Framebuffer &fb) {
         case Embree:
             RenderSliceEmbree(ystep*i, ystep*(i+1), fb);
             break;
-        case OpenCL:
+        case OpenCL:    
+            glEnable(GL_TEXTURE_2D);
             GLuint ctexture;
             glGenTextures(1, &ctexture);
             stateok();
@@ -473,8 +572,13 @@ void Scene::render(Framebuffer &fb) {
             cam.up.s[0] = config.up.x;
             cam.up.s[1] = config.up.y;
             cam.up.s[2] = config.up.z;
-
             cl_err = clSetKernelArg(kernel, 9, sizeof(CameraConfigCL),(void*)&cam);
+            stateok();
+            cl_err = clSetKernelArg(kernel, 10, sizeof(cl_tripos),(void*)&cl_tripos);
+            stateok();
+            cl_err = clSetKernelArg(kernel, 11, sizeof(cl_spherepos),(void*)&cl_spherepos);
+            stateok();
+            cl_err = clSetKernelArg(kernel, 12, sizeof(cl_lightpos),(void*)&cl_lightpos);
             glFinish();
             stateok();
             size_t worksize[2] = {fb.x, fb.y};
@@ -483,8 +587,34 @@ void Scene::render(Framebuffer &fb) {
             clFinish(queue);
             stateok();
             cl_err = clEnqueueReleaseGLObjects(queue, 1, &buffer, 0, 0, NULL);
+            clReleaseMemObject(buffer);
             stateok();
-            glDeleteTextures(1, &ctexture);
+            //glDeleteTextures(1, &ctexture);
+            glMatrixMode(GL_PROJECTION);
+            glPushMatrix();
+            glLoadIdentity();
+            glOrtho(0.0, 100, 0.0, 100, -1.0, 1.0);
+            glMatrixMode(GL_MODELVIEW);
+            glPushMatrix();
+            glLoadIdentity();
+            glDisable(GL_LIGHTING);
+            glColor3f(1,1,1);
+            glBindTexture(GL_TEXTURE_2D, ctexture);
+            glBegin(GL_QUADS);
+            glTexCoord2f(0, 0); glVertex3f(0, 0, 0);
+            glTexCoord2f(0, 1); glVertex3f(0, 100, 0);
+            glTexCoord2f(1, 1); glVertex3f(100, 100, 0);
+            glTexCoord2f(1, 0); glVertex3f(100, 0, 0);
+            glEnd();
+
+            glDisable(GL_TEXTURE_2D);
+            glPopMatrix();
+
+
+            glMatrixMode(GL_PROJECTION);
+            glPopMatrix();
+
+            glMatrixMode(GL_MODELVIEW);
             stateok();
 //            cl_uchar3 *ptr = (cl_uchar3*)clEnqueueMapBuffer(queue, buffer, CL_TRUE,
 //                                                            CL_MAP_READ, 0, fb.x*fb.y*sizeof(cl_uchar3), 0,
@@ -497,7 +627,7 @@ void Scene::render(Framebuffer &fb) {
 //            clEnqueueUnmapMemObject(queue, buffer, ptr, 0, 0, 0);
 //            clReleaseMemObject(buffer);
 
-            break;
+            return;
         }
     }
 }

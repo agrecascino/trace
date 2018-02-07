@@ -18,13 +18,11 @@ struct MaterialCL {
 };
 
 struct LightCL {
-    cl_float3 pos;
     cl_float3 color;
 };
 
 struct SphereCL {
     MaterialCL mat;
-    cl_float3 origin;
     cl_float radius;
 };
 
@@ -62,12 +60,13 @@ struct Material {
 };
 
 struct Light {
-    Light(glm::vec3 location,
-          glm::vec3 color,
-          glm::vec2 brightness) : location(location),
-        color(color),
-        brightness(brightness) {}
-    glm::vec3 location;
+    Light(glm::vec3 origin, glm::vec3 color,
+          glm::vec2 brightness) : color(color), brightness(brightness) {
+        transform[0][3] = origin.x;
+        transform[1][3] = origin.y;
+        transform[2][3] = origin.z;
+    }
+    glm::mat4x4 transform;
     glm::vec3 color;
     glm::vec2 brightness;
 };
@@ -99,9 +98,13 @@ public:
     virtual Intersection intersect(Ray &r) {
         return Intersection();
     }
+    virtual void setTransform(glm::mat4x4 m) { transform = m; }
+    virtual glm::mat4x4 getTransform() const { return transform; }
     virtual DeviceIntersectable* returnDeviceIntersectable() {
         return new DeviceIntersectable;
     }
+protected:
+    glm::mat4x4 transform;
 };
 
 class Scene;

@@ -1,7 +1,16 @@
 #include "sphere.h"
+#include <glm/gtc/matrix_access.hpp>
 
-Sphere::Sphere(glm::vec3 origin, float radius, Material mat) : origin(origin), radius(radius), mat(mat) {}
-glm::vec3 Sphere::getNormal(Ray &ray, float &t) { return ((ray.origin + (t*ray.direction) - origin)) / radius; }
+Sphere::Sphere(glm::vec3 origin, float radius, Material mat) : radius(radius), mat(mat) {
+    transform[0][3] = origin.x;
+    transform[1][3] = origin.y;
+    transform[2][3] = origin.z;
+}
+glm::vec3 Sphere::getNormal(Ray &ray, float &t) {
+    glm::vec4 origin4 = glm::column(transform, 3);
+    glm::vec3 origin(origin4.x, origin4.y, origin4.z);
+    return ((origin + (t*ray.direction) - origin)) / radius;
+}
 
 Material Sphere::getMaterial() {
     return mat;
@@ -9,6 +18,8 @@ Material Sphere::getMaterial() {
 
 Intersection Sphere::intersect(Ray &ray) {
     Intersection ret;
+    glm::vec4 origin4 = glm::column(transform, 3);
+    glm::vec3 origin(origin4.x, origin4.y, origin4.z);
     glm::vec3 p = ray.origin - origin;
     float rpow2 = radius*radius;
     float p_d = glm::dot(p, ray.direction);
@@ -31,14 +42,14 @@ Intersection Sphere::intersect(Ray &ray) {
     return ret;
 }
 
-IntersectableInternalOptimized* Sphere::optimize() {
-    SphereInternalOptimized *o = new SphereInternalOptimized;
-    o->mat = mat;
-    o->type = SphereType;
-    o->origin = origin;
-    o->radius = radius;
-    return (IntersectableInternalOptimized*)o;
-}
+//IntersectableInternalOptimized* Sphere::optimize() {
+//    SphereInternalOptimized *o = new SphereInternalOptimized;
+//    o->mat = mat;
+//    o->type = SphereType;
+//    o->origin = origin;
+//    o->radius = radius;
+//    return (IntersectableInternalOptimized*)o;
+//}
 
 unsigned int Sphere::getGeomID() const {
     return geomID;
@@ -51,12 +62,12 @@ void Sphere::setGeomID(unsigned int id) {
 void sphereBoundsFunc(const struct RTCBoundsFunctionArguments* args) {
     const Sphere* sphere = (const Sphere*)args->geometryUserPtr;
     RTCBounds* bounds_o = args->bounds_o;
-    bounds_o->lower_x = sphere->origin.x - sphere->radius;
-    bounds_o->lower_y = sphere->origin.y - sphere->radius;
-    bounds_o->lower_z = sphere->origin.z - sphere->radius;
-    bounds_o->upper_x = sphere->origin.x + sphere->radius;
-    bounds_o->upper_y = sphere->origin.y + sphere->radius;
-    bounds_o->upper_z = sphere->origin.z + sphere->radius;
+    bounds_o->lower_x = sphere->getTransform()[0][3] - sphere->radius;
+    bounds_o->lower_y = sphere->getTransform()[1][3] - sphere->radius;
+    bounds_o->lower_z = sphere->getTransform()[2][3] - sphere->radius;
+    bounds_o->upper_x = sphere->getTransform()[0][3] + sphere->radius;
+    bounds_o->upper_y = sphere->getTransform()[1][3] + sphere->radius;
+    bounds_o->upper_z = sphere->getTransform()[2][3] + sphere->radius;
 }
 
 void sphereOccludedFunc(const RTCOccludedFunctionNArguments* args) {
@@ -71,7 +82,9 @@ void sphereOccludedFunc(const RTCOccludedFunctionNArguments* args) {
         glm::vec3 origin = glm::vec3(RTCRayN_org_x(rays, n, i), RTCRayN_org_y(rays, n, i), RTCRayN_org_z(rays, n, i));
         glm::vec3 direction = glm::vec3(RTCRayN_dir_x(rays, n, i), RTCRayN_dir_y(rays, n, i), RTCRayN_dir_z(rays, n, i));
         const Sphere *sphere = (Sphere*)ptr;
-        glm::vec3 p = origin - sphere->origin;
+        glm::vec3 sphereorigin(sphere->getTransform()[0][3],
+                sphere->getTransform()[1][3], sphere->getTransform()[2][3]);
+        glm::vec3 p = origin - sphereorigin;
         float rpow2 = sphere->radius*sphere->radius;
         float p_d = glm::dot(p, direction);
         if(p_d > 0 || dot(p, p) < rpow2)
@@ -104,7 +117,9 @@ void sphereIntersectFunc(const RTCIntersectFunctionNArguments* args) {
         glm::vec3 direction = glm::vec3(RTCRayN_dir_x(rays, n, i), RTCRayN_dir_y(rays, n, i), RTCRayN_dir_z(rays, n, i));
         void* ptr  = args->geometryUserPtr;
         const Sphere *sphere = (Sphere*)ptr;
-        const glm::vec3 m = origin - sphere->origin;
+        glm::vec3 sphereorigin(sphere->getTransform()[0][3],
+                sphere->getTransform()[1][3], sphere->getTransform()[2][3]);
+        const glm::vec3 m = origin - sphereorigin;
         const float b = glm::dot(m, direction);
         const float c = glm::dot(m,m) - (sphere->radius*sphere->radius);
         if(c > 0.0f && b > 0.0f)
