@@ -5,6 +5,7 @@
 #include <vector>
 #include <string>
 #include <CL/cl.h>
+#include <GL/glew.h>
 
 struct CameraConfigCL {
     cl_float3 center;
@@ -18,11 +19,13 @@ struct MaterialCL {
 };
 
 struct LightCL {
+    cl_float3 pos;
     cl_float3 color;
 };
 
 struct SphereCL {
     MaterialCL mat;
+    cl_float3 origin;
     cl_float radius;
 };
 
@@ -52,6 +55,7 @@ struct Framebuffer {
     size_t x;
     size_t y;
     uint8_t *fb;
+    GLuint textureid;
 };
 
 struct Material {
@@ -104,7 +108,7 @@ public:
         return new DeviceIntersectable;
     }
 protected:
-    glm::mat4x4 transform;
+    glm::mat4x4 transform = glm::mat4x4(1.0f);
 };
 
 class Scene;

@@ -30,7 +30,10 @@ static glm::vec3 quadlerp(const glm::vec3 &v1,
     return lerp(lerp(v1, v2, u), lerp(v3, v4, u), v);
 }
 
-Scene::Scene(RenderBackend backend, size_t nthreads) : pool(nthreads), backend(backend) {
+Scene::Scene(RenderBackend backend, size_t nthreads,
+             std::function<int(Scene*, Framebuffer&)> prep,
+             std::function<void(Scene*, Framebuffer&)> draw) : pool(nthreads), backend(backend),
+                                                               prepframe(prep), drawframe(draw) {
     if(backend == Embree)
         scene = rtcNewScene(device);
     if(backend == OpenCL) {
@@ -110,89 +113,86 @@ void Scene::SwitchBackend(RenderBackend back) {
     RegenerateObjectCache();
 }
 
-void Scene::RegenerateObjectPositions() {
-    if(backend == OpenCL) {
-        if(spos) {
-            clReleaseMemObject(cl_spherepos);
-            delete[] spos;
+void Scene::TranslateAndRotate() {
+    spherecount = 0;
+    tricount = 0;
+    for(unsigned long i = 0; i < intersectables.size(); i++) {
+        if(typeid(*intersectables[i]) == typeid(Triangle)) {
+            tricount++;
+        } else if(typeid(*intersectables[i]) == typeid(Sphere)) {
+            spherecount++;
         }
-        if(tpos) {
-            clReleaseMemObject(cl_tripos);
-            delete[] tpos;
-        }
-        if(lpos) {
-            clReleaseMemObject(cl_lightpos);
-            delete[] lpos;
-        }
-        spos = new cl_float16[spherecount];
-        tpos = new cl_float16[tricount];
-        lpos = new cl_float16[lights.size()];
-        unsigned long is = 0, it = 0;
-        for(unsigned long i = 0; i < intersectables.size(); i++) {
-            if(typeid(*intersectables[i]) == typeid(Triangle)) {
-                glm::mat4x4 m = intersectables[i]->getTransform();
-                tpos[it].s0 = m[0][0];
-                tpos[it].s1 = m[1][0];
-                tpos[it].s2 = m[2][0];
-                tpos[it].s3 = m[3][0];
-                tpos[it].s4 = m[0][1];
-                tpos[it].s5 = m[1][1];
-                tpos[it].s6 = m[2][1];
-                tpos[it].s7 = m[3][1];
-                tpos[it].s8 = m[0][2];
-                tpos[it].s9 = m[1][2];
-                tpos[it].sa = m[2][2];
-                tpos[it].sb = m[3][2];
-                tpos[it].sc = m[0][3];
-                tpos[it].sd = m[1][3];
-                tpos[it].se = m[2][3];
-                tpos[it].sf = m[3][3];
-                it++;
-            } else if(typeid(*intersectables[i]) == typeid(Sphere)) {
-                glm::mat4x4 m = intersectables[i]->getTransform();
-                spos[is].s0 = m[0][0];
-                spos[is].s1 = m[1][0];
-                spos[is].s2 = m[2][0];
-                spos[is].s3 = m[3][0];
-                spos[is].s4 = m[0][1];
-                spos[is].s5 = m[1][1];
-                spos[is].s6 = m[2][1];
-                spos[is].s7 = m[3][1];
-                spos[is].s8 = m[0][2];
-                spos[is].s9 = m[1][2];
-                spos[is].sa = m[2][2];
-                spos[is].sb = m[3][2];
-                spos[is].sc = m[0][3];
-                spos[is].sd = m[1][3];
-                spos[is].se = m[2][3];
-                spos[is].sf = m[3][3];
-                is++;
-            }
-        }
-        for(unsigned long i = 0; i < lights.size(); i++) {
-            glm::mat4x4 m = lights[i]->transform;
-            lpos[i].s0 = m[0][0];
-            lpos[i].s1 = m[1][0];
-            lpos[i].s2 = m[2][0];
-            lpos[i].s3 = m[3][0];
-            lpos[i].s4 = m[0][1];
-            lpos[i].s5 = m[1][1];
-            lpos[i].s6 = m[2][1];
-            lpos[i].s7 = m[3][1];
-            lpos[i].s8 = m[0][2];
-            lpos[i].s9 = m[1][2];
-            lpos[i].sa = m[2][2];
-            lpos[i].sb = m[3][2];
-            lpos[i].sc = m[0][3];
-            lpos[i].sd = m[1][3];
-            lpos[i].se = m[2][3];
-            lpos[i].sf = m[3][3];
-        }
-        cl_tripos = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, (tricount * sizeof(cl_float16)), tpos, NULL);
-        cl_spherepos = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, (spherecount * sizeof(cl_float16)), spos, NULL);
-        cl_lightpos = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, (lights.size() * sizeof(cl_float16)), lpos, NULL);
-
     }
+    if(triangles_buf) {
+        delete[] triangles_buf;
+    }
+    if(spheres_buf) {
+        delete[] spheres_buf;
+    }
+    if(lights_buf) {
+        delete[] lights_buf;
+    }
+    triangles_buf = new TriangleCL[tricount];
+    spheres_buf = new SphereCL[spherecount];
+    lights_buf = new LightCL[lights.size()];
+    for(size_t i = 0; i < lights.size(); i++) {
+        lights_buf[i].color.s[0] = lights[i]->color.x;
+        lights_buf[i].color.s[1] = lights[i]->color.y;
+        lights_buf[i].color.s[2] = lights[i]->color.z;
+    }
+    int tc = 0;
+    int sc = 0;
+    for(unsigned long i = 0; i < intersectables.size(); i++) {
+        if(typeid(*intersectables[i]) == typeid(Triangle)) {
+            glm::mat4x4 matrix = intersectables[i]->getTransform();
+            glm::vec3 a = *(glm::vec3*)(((Triangle*)intersectables[i])->getVertexBuffer());
+            glm::vec3 b = *(glm::vec3*)(((Triangle*)intersectables[i])->getVertexBuffer() + 3);
+            glm::vec3 c = *(glm::vec3*)(((Triangle*)intersectables[i])->getVertexBuffer() + 6);
+            a = glm::vec3(matrix * glm::vec4(a, 1.0f));
+            b = glm::vec3(matrix * glm::vec4(b, 1.0f));
+            c = glm::vec3(matrix * glm::vec4(c, 1.0f));
+            triangles_buf[tc].pts[0].x = a.x;
+            triangles_buf[tc].pts[0].y = a.y;
+            triangles_buf[tc].pts[0].z = a.z;
+            triangles_buf[tc].pts[1].x = b.x;
+            triangles_buf[tc].pts[1].y = b.y;
+            triangles_buf[tc].pts[1].z = b.z;
+            triangles_buf[tc].pts[2].x = c.x;
+            triangles_buf[tc].pts[2].y = c.y;
+            triangles_buf[tc].pts[2].z = c.z;
+            MaterialCL m;
+            Material mat = intersectables[i]->getMaterial();
+            m.color.s[0] = mat.color.x;
+            m.color.s[1] = mat.color.y;
+            m.color.s[2] = mat.color.z;
+            m.reflective = mat.reflective;
+            triangles_buf[tc].mat = m;
+            tc++;
+        } else if(typeid(*intersectables[i]) == typeid(Sphere)) {
+            glm::mat4x4 matrix = intersectables[i]->getTransform();
+            glm::vec4 o4(0.0, 0.0, 0.0, 1.0);
+            o4 = matrix * glm::vec4(0.0, 0.0, 0.0, 1.0);
+            glm::vec3 o(o4);
+            spheres_buf[sc].origin.x = o.x;
+            spheres_buf[sc].origin.y = o.y;
+            spheres_buf[sc].origin.z = o.z;
+            spheres_buf[sc].radius = ((Sphere*)intersectables[i])->radius;
+            MaterialCL m;
+            Material mat = intersectables[i]->getMaterial();
+            m.color.s[0] = mat.color.x;
+            m.color.s[1] = mat.color.y;
+            m.color.s[2] = mat.color.z;
+            m.reflective = mat.reflective;
+            spheres_buf[sc].mat = m;
+            sc++;
+        }
+    }
+}
+
+void Scene::GPUUploadGeometry() {
+    cl_tris = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, tricount * sizeof(TriangleCL), triangles_buf, 0);
+    cl_lights = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, lights.size() * sizeof(LightCL), lights_buf, 0);
+    cl_spheres = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, spherecount * sizeof(TriangleCL), spheres_buf, 0);
 }
 
 void Scene::RegenerateObjectCache() {
@@ -231,72 +231,8 @@ void Scene::RegenerateObjectCache() {
         delete[] geometry;
         rtcCommitScene(scene);
     } else if(backend == OpenCL) {
-        spherecount = 0;
-        tricount = 0;
-        for(unsigned long i = 0; i < intersectables.size(); i++) {
-            if(typeid(*intersectables[i]) == typeid(Triangle)) {
-                tricount++;
-            } else if(typeid(*intersectables[i]) == typeid(Sphere)) {
-                spherecount++;
-            }
-        }
-        if(triangles_buf) {
-            clReleaseMemObject(cl_tris);
-            delete[] triangles_buf;
-        }
-        if(spheres_buf) {
-            clReleaseMemObject(cl_spheres);
-            delete[] spheres_buf;
-        }
-        if(lights_buf) {
-            clReleaseMemObject(cl_lights);
-            delete[] lights_buf;
-        }
-        triangles_buf = new TriangleCL[tricount];
-        spheres_buf = new SphereCL[spherecount];
-        lights_buf = new LightCL[lights.size()];
-        for(size_t i = 0; i < lights.size(); i++) {
-            lights_buf[i].color.s[0] = lights[i]->color.x;
-            lights_buf[i].color.s[1] = lights[i]->color.y;
-            lights_buf[i].color.s[2] = lights[i]->color.z;
-        }
-        int tc = 0;
-        int sc = 0;
-        for(unsigned long i = 0; i < intersectables.size(); i++) {
-            if(typeid(*intersectables[i]) == typeid(Triangle)) {
-                triangles_buf[tc].pts[0].x = ((Triangle*)intersectables[i])->getVertexBuffer()[0];
-                triangles_buf[tc].pts[0].y = ((Triangle*)intersectables[i])->getVertexBuffer()[1];
-                triangles_buf[tc].pts[0].z = ((Triangle*)intersectables[i])->getVertexBuffer()[2];
-                triangles_buf[tc].pts[1].x = ((Triangle*)intersectables[i])->getVertexBuffer()[3];
-                triangles_buf[tc].pts[1].y = ((Triangle*)intersectables[i])->getVertexBuffer()[4];
-                triangles_buf[tc].pts[1].z = ((Triangle*)intersectables[i])->getVertexBuffer()[5];
-                triangles_buf[tc].pts[2].x = ((Triangle*)intersectables[i])->getVertexBuffer()[6];
-                triangles_buf[tc].pts[2].y = ((Triangle*)intersectables[i])->getVertexBuffer()[7];
-                triangles_buf[tc].pts[2].z = ((Triangle*)intersectables[i])->getVertexBuffer()[8];
-                MaterialCL m;
-                Material mat = intersectables[i]->getMaterial();
-                m.color.s[0] = mat.color.x;
-                m.color.s[1] = mat.color.y;
-                m.color.s[2] = mat.color.z;
-                m.reflective = mat.reflective;
-                triangles_buf[tc].mat = m;
-                tc++;
-            } else if(typeid(*intersectables[i]) == typeid(Sphere)) {
-                spheres_buf[sc].radius = ((Sphere*)intersectables[i])->radius;
-                MaterialCL m;
-                Material mat = intersectables[i]->getMaterial();
-                m.color.s[0] = mat.color.x;
-                m.color.s[1] = mat.color.y;
-                m.color.s[2] = mat.color.z;
-                m.reflective = mat.reflective;
-                spheres_buf[sc].mat = m;
-                sc++;
-            }
-        }
-        RegenerateObjectPositions();
-        cl_tris = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, tricount * sizeof(TriangleCL), triangles_buf, 0);
-        cl_lights = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, lights.size() * sizeof(LightCL), lights_buf, 0);
-        cl_spheres = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, spherecount * sizeof(TriangleCL), spheres_buf, 0);
+        TranslateAndRotate();
+        GPUUploadGeometry();
     }
 }
 
@@ -507,16 +443,9 @@ void Scene::render(Framebuffer &fb) {
         return;
     }
     size_t ystep = fb.y/8;
-    std::vector<std::future<void>> f(8);
-    for(size_t i = 0; i < 8; i++) {
-        switch(backend) {
-        case Rendertape:
-            RenderSliceTape(ystep*i, ystep*(i+1), fb);
-            break;
-        case Embree:
-            RenderSliceEmbree(ystep*i, ystep*(i+1), fb);
-            break;
-        case OpenCL:    
+    prepframe(this, fb);
+    while(true) {
+        if(backend == OpenCL) {
             glEnable(GL_TEXTURE_2D);
             GLuint ctexture;
             glGenTextures(1, &ctexture);
@@ -533,15 +462,12 @@ void Scene::render(Framebuffer &fb) {
             stateok();
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, fb.x, fb.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
             stateok();
-            //glBufferData(cbuffer, fb.x*fb.y*sizeof(cl_uchar3), NULL, GL_DRAW_BUFFER);
             buffer = clCreateFromGLTexture(context, CL_MEM_WRITE_ONLY, GL_TEXTURE_2D, 0, ctexture, &cl_err);
             stateok();
             glFinish();
             stateok();
             cl_err = clEnqueueAcquireGLObjects(queue, 1, &buffer, 0, NULL, NULL);
             stateok();
-            //buffer = clCreateFromGLBuffer(context, CL_MEM_WRITE_ONLY, cbuffer, NULL);
-            //buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, fb.x*fb.y*sizeof(cl_uchar3), NULL, NULL);
             cl_err = clSetKernelArg(kernel, 0, sizeof(buffer), (void*)&buffer);
             stateok();
             cl_err = clSetKernelArg(kernel, 1, sizeof(cl_uint),(void*)&fb.x);
@@ -562,73 +488,53 @@ void Scene::render(Framebuffer &fb) {
             cl_err = clSetKernelArg(kernel, 8, sizeof(cl_lights),(void*)&cl_lights);
             stateok();
             CameraConfigCL cam;
+            cl_mem b1, b2, b3;
+            b1 = cl_tris;
+            b2 = cl_spheres;
+            b3 = cl_lights;
             cam.center.s[0] = config.center.x;
             cam.center.s[1] = config.center.y;
             cam.center.s[2] = config.center.z;
             cam.lookat.s[0] = config.lookat.x;
             cam.lookat.s[1] = config.lookat.y;
-
             cam.lookat.s[2] = config.lookat.z;
             cam.up.s[0] = config.up.x;
             cam.up.s[1] = config.up.y;
             cam.up.s[2] = config.up.z;
             cl_err = clSetKernelArg(kernel, 9, sizeof(CameraConfigCL),(void*)&cam);
             stateok();
-            cl_err = clSetKernelArg(kernel, 10, sizeof(cl_tripos),(void*)&cl_tripos);
-            stateok();
-            cl_err = clSetKernelArg(kernel, 11, sizeof(cl_spherepos),(void*)&cl_spherepos);
-            stateok();
-            cl_err = clSetKernelArg(kernel, 12, sizeof(cl_lightpos),(void*)&cl_lightpos);
             glFinish();
             stateok();
             size_t worksize[2] = {fb.x, fb.y};
             cl_err = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, worksize, NULL, 0, NULL, NULL);
             stateok();
+            if(prepframe(this, fb))
+                return;
+            RegenerateObjectCache();
             clFinish(queue);
+            clReleaseMemObject(b1);
+            clReleaseMemObject(b2);
+            clReleaseMemObject(b3);
             stateok();
             cl_err = clEnqueueReleaseGLObjects(queue, 1, &buffer, 0, 0, NULL);
             clReleaseMemObject(buffer);
             stateok();
-            //glDeleteTextures(1, &ctexture);
-            glMatrixMode(GL_PROJECTION);
-            glPushMatrix();
-            glLoadIdentity();
-            glOrtho(0.0, 100, 0.0, 100, -1.0, 1.0);
-            glMatrixMode(GL_MODELVIEW);
-            glPushMatrix();
-            glLoadIdentity();
-            glDisable(GL_LIGHTING);
-            glColor3f(1,1,1);
-            glBindTexture(GL_TEXTURE_2D, ctexture);
-            glBegin(GL_QUADS);
-            glTexCoord2f(0, 0); glVertex3f(0, 0, 0);
-            glTexCoord2f(0, 1); glVertex3f(0, 100, 0);
-            glTexCoord2f(1, 1); glVertex3f(100, 100, 0);
-            glTexCoord2f(1, 0); glVertex3f(100, 0, 0);
-            glEnd();
-
-            glDisable(GL_TEXTURE_2D);
-            glPopMatrix();
-
-
-            glMatrixMode(GL_PROJECTION);
-            glPopMatrix();
-
-            glMatrixMode(GL_MODELVIEW);
-            stateok();
-//            cl_uchar3 *ptr = (cl_uchar3*)clEnqueueMapBuffer(queue, buffer, CL_TRUE,
-//                                                            CL_MAP_READ, 0, fb.x*fb.y*sizeof(cl_uchar3), 0,
-//                                                            NULL, NULL, NULL);
-//            for(size_t i = 0; i < fb.x*fb.y; i++) {
-//                fb.fb[i*3] = ptr[i].x;
-//                fb.fb[i*3 + 1] = ptr[i].y;
-//                fb.fb[i*3 + 2] = ptr[i].z;
-//            }
-//            clEnqueueUnmapMemObject(queue, buffer, ptr, 0, 0, 0);
-//            clReleaseMemObject(buffer);
-
-            return;
+            fb.textureid = ctexture;
+            drawframe(this, fb);
+            continue;
         }
+        for(size_t i = 0; i < 8; i++) {
+            switch(backend) {
+            case Rendertape:
+                RenderSliceTape(ystep*i, ystep*(i+1), fb);
+                break;
+            case Embree:
+                RenderSliceEmbree(ystep*i, ystep*(i+1), fb);
+                break;
+            }
+        }
+        drawframe(this, fb);
+        prepframe(this, fb);
     }
 }
 

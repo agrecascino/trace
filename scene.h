@@ -5,11 +5,13 @@
 #include "ctpl.h"
 #include <unordered_map>
 #include <CL/cl.h>
-
+#include <functional>
 
 class Scene {
 public:
-    Scene(RenderBackend backend, size_t nthreads);
+    Scene(RenderBackend backend, size_t nthreads,
+          std::function<int(Scene*, Framebuffer&)> prep,
+          std::function<void(Scene*, Framebuffer&)> draw);
 
     OwnedHandle AddObject(Intersectable* obj);
 
@@ -17,9 +19,13 @@ public:
 
     void RemoveObjectsByHandle(OwnedHandle handle);
 
-    void RegenerateObjectPositions();
-
     void RegenerateObjectCache();
+
+    void TranslateAndRotate();
+
+    void GPUUploadGeometry();
+
+    void GPUUploadMaterials();
 
     void AddLight(Light* obj);
 
@@ -48,16 +54,15 @@ public:
 
     ~Scene();
 private:
+    std::function<int(Scene*, Framebuffer&)> prepframe;
+    std::function<void(Scene*, Framebuffer&)> drawframe;
     SphereCL *spheres_buf = NULL;
     TriangleCL *triangles_buf = NULL;
     LightCL *lights_buf = NULL;
-    cl_float16 *tpos = NULL;
-    cl_float16 *spos = NULL;
-    cl_float16 *lpos = NULL;
     cl_context context;
     cl_command_queue queue;
     cl_kernel kernel;
-    cl_mem buffer, cl_tris, cl_spheres, cl_lights, cl_tripos, cl_spherepos, cl_lightpos;
+    cl_mem buffer = NULL, cl_tris = NULL, cl_spheres = NULL, cl_lights = NULL;
     RenderBackend backend;
     RTCGeometry *geometry = NULL;
     RTCDevice device = rtcNewDevice("verbose=1");
