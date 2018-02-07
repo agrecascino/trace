@@ -15,11 +15,13 @@ struct Ray {
 };
 
 struct Light {
+    float3 pos;
     float3 color;
 };
 
 struct Sphere {
     struct Material mat;
+    float3 origin;
     float radius;
 };
 
@@ -32,24 +34,14 @@ struct Scene {
     __constant struct Sphere *spheres;
     __constant struct Triangle *triangles;
     __constant struct Light *lights;
-    __constant float16 *tritrans;
-    __constant float16 *spheretrans;
-    __constant float16 *lighttrans;
     int sphereCount;
     int triCount;
     int lightCount;
 };
 
-float3 matrixVectorMultiply(float16 matrix, float3 vector){ 
-	float3 result;
-	result.x = matrix.s0*(vector.x)+matrix.s4*(vector.y)+matrix.s8*(vector.z)+matrix.sc;
-	result.y = matrix.s1*(vector.x)+matrix.s5*(vector.y)+matrix.s9*(vector.z)+matrix.sd;
-	result.z = matrix.s2*(vector.x)+matrix.s6*(vector.y)+matrix.sa*(vector.z)+matrix.se;
-	return result;
-}
 
-int isphere(struct Ray *r, float *t, __constant struct Sphere *sphere, float3 *normal, float16 transform) {
-    float3 p = r->origin - transform.scde;
+int isphere(struct Ray *r, float *t, __constant struct Sphere *sphere, float3 *normal) {
+    float3 p = r->origin - sphere->origin;
     float rpow2 = sphere->radius*sphere->radius;
     float p_d = dot(p, r->direction);
 
@@ -62,20 +54,20 @@ int isphere(struct Ray *r, float *t, __constant struct Sphere *sphere, float3 *n
         return -1;
     float h = sqrt(rpow2 - apow2);
     float3 i = a - h*r->direction;
-    float3 pt = transform.scde + i;
+    float3 pt = sphere->origin + i;
     *t = ((pt-r->origin) / r->direction).x;
     *normal = i/sphere->radius;
     return 0;
     
 }
 
-int itriangle(struct Ray *r, float *t, __constant struct Triangle *tri, float3 *normal, float16 transform) {
+int itriangle(struct Ray *r, float *t, __constant struct Triangle *tri, float3 *normal) {
     const float eps = 0.0000001;
     float3 edge1, edge2, h, s, q;
     float a, f, u, v;
-    float3 pt0 = matrixVectorMultiply(transform, tri->pts[0]);
-    edge1 = matrixVectorMultiply(transform, tri->pts[1]) - pt0;
-    edge2 = matrixVectorMultiply(transform, tri->pts[2]) - pt0;
+    float3 pt0 = tri->pts[0];
+    edge1 = tri->pts[1] - pt0;
+    edge2 = tri->pts[2] - pt0;
     h = cross(r->direction, edge2);
     a = dot(edge1, h);
 
@@ -105,7 +97,7 @@ void cast(struct Ray* r, struct Scene* scene, float3 *normal, float *spherelowt,
     float3 fcolor= { 0,0,0};
     float3 tnormal;
     for(int i = 0; i < scene->sphereCount; i++) {
-        if(isphere(r, &t, &scene->spheres[i], &tnormal, scene->spheretrans[i])  != -1) {
+        if(isphere(r, &t, &scene->spheres[i], &tnormal)  != -1) {
             if(t < *spherelowt) {
                 *spherelowt = t;
                 color2->x = scene->spheres[i].mat.color.x;
@@ -117,7 +109,7 @@ void cast(struct Ray* r, struct Scene* scene, float3 *normal, float *spherelowt,
         }
     }
     for(int i = 0; i < scene->triCount; i++) {
-        if(itriangle(r, &t, &scene->triangles[i], &tnormal, scene->tritrans[i])  != -1) {
+        if(itriangle(r, &t, &scene->triangles[i], &tnormal)  != -1) {
             if(t < *spherelowt) {
                 *spherelowt = t;
                 color2->x = scene->triangles[i].mat.color.x;
@@ -146,8 +138,9 @@ float4 trace(struct Ray *r, struct Scene* scene) {
     }
     if(spherelowt > 1023)
         return color * afactor;
-    for(int i = 0; i < scene->lightCount; i++) {
-        float3 lightpos = scene->lighttrans[i].scde;
+    fcolor = color2;
+    /*for(int i = 0; i < scene->lightCount; i++) {
+        float3 lightpos = scene->lights[i].pos;
         float3 l = lightpos - hp;
         float dt = dot(normalize(l), lnormal);
         struct Ray s;
@@ -161,12 +154,12 @@ float4 trace(struct Ray *r, struct Scene* scene) {
         float3 shp = s.origin + t*s.direction;
         if((t > 1023) || distance(shp, s.origin) > distance(s.origin, lightpos))
             fcolor += (scene->lights[i].color*dt)*color2;
-    }
+    }*/
     float4 fcolor4 = {fcolor.x, fcolor.y, fcolor.z, 1.0};
     return fcolor4 * afactor;
 }
 
-__kernel void _main(__write_only image2d_t img, uint width, uint height, uint tricount, uint spherecount, uint lightcount, __constant struct Triangle *tris, __constant struct Sphere *spheres, __constant struct Light *lights, struct CameraConfig camera, __constant float16 *tritrans, __constant float16 *spheretrans, __constant float16 *lighttrans) {
+__kernel void _main(__write_only image2d_t img, uint width, uint height, uint tricount, uint spherecount, uint lightcount, __constant struct Triangle *tris, __constant struct Sphere *spheres, __constant struct Light *lights, struct CameraConfig camera) {
     struct Scene scene;
     scene.triangles = tris;
     scene.spheres = spheres;
@@ -174,9 +167,6 @@ __kernel void _main(__write_only image2d_t img, uint width, uint height, uint tr
     scene.sphereCount = spherecount;
     scene.triCount = tricount;
     scene.lightCount = lightcount;
-    scene.tritrans = tritrans;
-    scene.spheretrans = spheretrans;
-    scene.lighttrans = lighttrans;
     float dx = 1.0f / (float)width;
     float dy = 1.0f / (float)height;
     float x = (float)(get_global_id(0) % width) / (float)(width);
@@ -189,6 +179,7 @@ __kernel void _main(__write_only image2d_t img, uint width, uint height, uint tr
     r.origin = camera.center;   
     r.direction    = normalize(camright*x + (camera.up * y) + camera.lookat);
     float4 color = trace(&r, &scene); 
+    //float4 color = { 1, 1, 1, 1};
     int2 xy = {get_global_id(0), get_global_id(1)};
     write_imagef(img, xy, color);
 }                                 

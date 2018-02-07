@@ -1,10 +1,9 @@
 #include "sphere.h"
 #include <glm/gtc/matrix_access.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 Sphere::Sphere(glm::vec3 origin, float radius, Material mat) : radius(radius), mat(mat) {
-    transform[0][3] = origin.x;
-    transform[1][3] = origin.y;
-    transform[2][3] = origin.z;
+    transform = glm::translate(transform, origin);
 }
 glm::vec3 Sphere::getNormal(Ray &ray, float &t) {
     glm::vec4 origin4 = glm::column(transform, 3);
