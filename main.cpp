@@ -126,7 +126,7 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     glm::vec3 right = glm::vec3(sin(horizontal - 3.14f / 2.0f), 0, cos(horizontal - 3.14f / 2.0f));
     //cfg.up = glm::cross(right, cfg.lookat);
     cfg.up = glm::vec3(0.0, 1.0, 0.0);
-    cfg.lookat = glm::normalize(glm::vec3(mat[0][3], 0.0, mat[2][3]) - cfg.center);
+    cfg.lookat = glm::normalize(glm::vec3(mat[3][0], 0.0, mat[3][2]) - cfg.center);
     if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         cfg.center += cfg.lookat*tdiff;
     }

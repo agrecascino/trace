@@ -66,9 +66,9 @@ struct Material {
 struct Light {
     Light(glm::vec3 origin, glm::vec3 color,
           glm::vec2 brightness) : color(color), brightness(brightness) {
-        transform[0][3] = origin.x;
-        transform[1][3] = origin.y;
-        transform[2][3] = origin.z;
+        transform[3][0] = origin.x;
+        transform[3][1] = origin.y;
+        transform[3][2] = origin.z;
     }
     glm::mat4x4 transform;
     glm::vec3 color;
