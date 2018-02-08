@@ -86,7 +86,6 @@ OwnedHandle Scene::AddObject(Intersectable* obj) {
     intersectables[current_id] = obj;
     OwnedHandle h(std::vector<size_t>(1, current_id));
     current_id++;
-    RegenerateObjectCache();
     return h;
 }
 
@@ -97,7 +96,6 @@ OwnedHandle Scene::AddObject(std::vector<Intersectable*> objects) {
         intersectables[current_id] = obj;
         current_id++;
     }
-    RegenerateObjectCache();
     return OwnedHandle(handles);
 }
 
@@ -105,12 +103,10 @@ void Scene::RemoveObjectsByHandle(OwnedHandle handle) {
     for(size_t i : handle.identifiers_owned) {
         intersectables.erase(i);
     }
-    RegenerateObjectCache();
 }
 
 void Scene::SwitchBackend(RenderBackend back) {
     backend = back;
-    RegenerateObjectCache();
 }
 
 void Scene::TranslateAndRotate() {
@@ -136,6 +132,12 @@ void Scene::TranslateAndRotate() {
     spheres_buf = new SphereCL[spherecount];
     lights_buf = new LightCL[lights.size()];
     for(size_t i = 0; i < lights.size(); i++) {
+        glm::mat4x4 matrix = lights[i]->transform;
+        glm::vec4 vec(0.0f, 0.0f, 0.0f, 1.0f);
+        vec = matrix * vec;
+        lights_buf[i].pos.x = vec.x;
+        lights_buf[i].pos.y = vec.y;
+        lights_buf[i].pos.z = vec.z;
         lights_buf[i].color.s[0] = lights[i]->color.x;
         lights_buf[i].color.s[1] = lights[i]->color.y;
         lights_buf[i].color.s[2] = lights[i]->color.z;
@@ -316,7 +318,7 @@ void Scene::RenderSliceTape(size_t yfirst, size_t ylast, Framebuffer &fb) {
                 if(!hit[i].intersected)
                     continue;
                 for(Light *light : lights) {
-                    glm::vec3 lightlocation = glm::vec3(light->transform[0][3], light->transform[1][3], light->transform[2][3]);
+                    glm::vec3 lightlocation = glm::vec3(light->transform[3][0], light->transform[3][1], light->transform[3][2]);
                     glm::vec3 l = lightlocation - hit[i].point;
                     glm::vec3 n = hit[i].normal;
                     if(glm::dot(n, -r[i].direction) < 0) {
@@ -392,7 +394,7 @@ void Scene::RenderSliceEmbree(size_t yfirst, size_t ylast, Framebuffer &fb) {
                 if(!hit[i].intersected)
                     continue;
                 for(Light *light : lights) {
-                    glm::vec3 lightlocation = glm::vec3(light->transform[0][3], light->transform[1][3], light->transform[2][3]);
+                    glm::vec3 lightlocation = glm::vec3(light->transform[3][0], light->transform[3][1], light->transform[3][2]);
                     glm::vec3 l = lightlocation - hit[i].point;
                     glm::vec3 n = hit[i].normal;
                     glm::vec3 rdirect = glm::vec3(r.ray.dir_x[i], r.ray.dir_y[i], r.ray.dir_z[i]);
@@ -444,6 +446,7 @@ void Scene::render(Framebuffer &fb) {
     }
     size_t ystep = fb.y/8;
     prepframe(this, fb);
+    RegenerateObjectCache();
     while(true) {
         if(backend == OpenCL) {
             glEnable(GL_TEXTURE_2D);

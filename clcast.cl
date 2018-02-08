@@ -138,8 +138,8 @@ float4 trace(struct Ray *r, struct Scene* scene) {
     }
     if(spherelowt > 1023)
         return color * afactor;
-    fcolor = color2;
-    /*for(int i = 0; i < scene->lightCount; i++) {
+    //fcolor = color2;
+    for(int i = 0; i < scene->lightCount; i++) {
         float3 lightpos = scene->lights[i].pos;
         float3 l = lightpos - hp;
         float dt = dot(normalize(l), lnormal);
@@ -154,7 +154,7 @@ float4 trace(struct Ray *r, struct Scene* scene) {
         float3 shp = s.origin + t*s.direction;
         if((t > 1023) || distance(shp, s.origin) > distance(s.origin, lightpos))
             fcolor += (scene->lights[i].color*dt)*color2;
-    }*/
+    }
     float4 fcolor4 = {fcolor.x, fcolor.y, fcolor.z, 1.0};
     return fcolor4 * afactor;
 }
@@ -178,7 +178,8 @@ __kernel void _main(__write_only image2d_t img, uint width, uint height, uint tr
     struct Ray r;
     r.origin = camera.center;   
     r.direction    = normalize(camright*x + (camera.up * y) + camera.lookat);
-    float4 color = trace(&r, &scene); 
+    float4 color = trace(&r, &scene);
+    //float4 color = { scene.lights[0].pos.x, scene.lights[0].pos.y, scene.lights[0].pos.z, 1.0 };
     //float4 color = { 1, 1, 1, 1};
     int2 xy = {get_global_id(0), get_global_id(1)};
     write_imagef(img, xy, color);
