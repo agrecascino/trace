@@ -133,13 +133,55 @@ float4 trace(struct Ray *r, struct Scene* scene) {
     bool reflect = false;
     cast(r, scene, &lnormal, &spherelowt, &color2, &reflect);
     float3 hp = r->origin + spherelowt*r->direction;
-    if(dot(lnormal, -r->direction) < 0) {
-        lnormal = -lnormal;
-    }
     if(spherelowt > 1023)
         return color * afactor;
-    //fcolor = color2;
+    /*if(reflect) {
+        afactor *= 0.8;
+        float3 refd = normalize(r->direction - 2.0f*dot(r->direction, lnormal)*lnormal);
+        r->origin = hp + refd*0.001f;
+        r->direction = refd;
+        spherelowt = 1024;
+        cast(r, scene, &lnormal, &spherelowt, &color2, &reflect);
+        if(spherelowt > 1023)
+            return color * afactor;
+        else if(reflect) {
+            afactor *= 0.8;
+            float3 refd2 = normalize(r->direction - 2.0f*dot(r->direction, lnormal)*lnormal);
+            r->origin = hp + refd2*0.001f;
+            r->direction = refd2;
+            spherelowt = 1024;
+            cast(r, scene, &lnormal, &spherelowt, &color2, &reflect);
+            if(spherelowt > 1023)
+                return color * afactor;
+            else if(reflect)
+                return color * afactor;
+        }
+    }*/
+    if (reflect) {
+        int depth = 0;
+        afactor *= 0.8;
+	    while(reflect && depth < 3) { //set depth to 0 at the first ray 
+            if(dot(lnormal, -r->direction) < 0) {
+                lnormal = -lnormal;
+            }
+		    depth++;
+		    float3 refd = normalize(r->direction - 2.0f*dot(r->direction, lnormal)*lnormal);
+		    r->origin = hp + refd*0.001f;
+		    r->direction = refd;
+		    spherelowt = 1024;  
+		    cast(r, scene, &lnormal, &spherelowt, &color2, &reflect);
+		    if(spherelowt > 1023)
+		        break;
+		    hp = r->origin + spherelowt*r->direction;
+		    afactor *= 0.8;
+	    }
+	    if((spherelowt > 1023) || reflect)
+		    return color * afactor;
+    }
     for(int i = 0; i < scene->lightCount; i++) {
+        if(dot(lnormal, -r->direction) < 0) {
+            lnormal = -lnormal;
+        }
         float3 lightpos = scene->lights[i].pos;
         float3 l = lightpos - hp;
         float dt = dot(normalize(l), lnormal);
