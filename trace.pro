@@ -3,7 +3,7 @@ CONFIG += console c++11
 CONFIG -= app_bundle
 CONFIG -= qt
 
-LIBS += -lGLEW -lglfw -lGL -lgomp -lGLU -lpthread -lembree3 -lglut -lOpenCL
+LIBS += -lGLEW -lglfw -lGL -lgomp -lGLU -lpthread -lembree3 -lglut -lOpenCL -lportaudio
 
 QMAKE_CXXFLAGS = -fopenmp -std=gnu++14 -ffast-math -O0 -pthread
 
@@ -14,7 +14,8 @@ HEADERS += \
     cudapatch.h \
     triangle.h \
     sphere.h \
-    scene.h
+    scene.h \
+    player.h
 SOURCES += main.cpp \
     triangle.cpp \
     sphere.cpp \

@@ -28,11 +28,13 @@
 #include "vectorutil.h"
 #include "scene.h"
 #include <glm/gtc/matrix_transform.hpp>
+#include <player.h>
 
 GLFWwindow *window;
 
 bool firstrun = true;
 Sphere *s;
+Sphere *s3;
 int frame = 0;
 int prevframe = frame;
 float horizontal = 3.14f;
@@ -44,9 +46,35 @@ timeval past, present;
 CameraConfig cfg;
 float lasttime;
 RenderBackend currentbackend = OpenCL;
+float s3velocity = 0.0;
+float s3y = 3.0;
+float dtextpos = 96;
+int lasttrow = -1;
+struct Text {
+    double start;
+    double end;
+    std::string text;
+    int x, y;
+};
+float lastphysrun = 0;
+std::fstream f("lemonade.mod", std::ios_base::in | std::ios_base::binary);
+ModulePlayer player(f);
+
+std::vector<Text> texts;
+
+void playmodule() {
+    player.playModule();
+}
+
+float vectorstringoffset(std::string s) {
+    float size = s.size()/2.0;
+    return -(size*9.0 / 1600)*100;
+}
 
 int PrepFrameTest(Scene *man, Framebuffer &fb) {
     if(firstrun) {
+        std::thread t(&playmodule);
+        t.detach();
         lasttime = glfwGetTime();
         firstrun = false;
         cfg.center = glm::vec3(12.0, 4.0, 12.0);
@@ -71,14 +99,15 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         Triangle *triR2 = new Triangle(trisR2, reflect);
         Material r, g, b;
         r.color = glm::vec3(1.0, 0.0, 0.0);
+        r.reflective = true;
         g.color = glm::vec3(0.0, 1.0, 0.0);
         b.color = glm::vec3(0.0, 0.0, 1.0);
-        b.reflective = true;
+        b.reflective = false;
         s = new Sphere(glm::vec3(0.0, 0.0, 0.0), 2, b);
         Sphere *s2 = new Sphere(glm::vec3(10.0, 0.0, 0.0), 2, g);
-        Sphere *s3 = new Sphere(glm::vec3(10.0, 0.0, 10.0), 2, r);
+        s3 = new Sphere(glm::vec3(10.0, 3.0, 10.0), 4, r);
         Light *l = new Light(glm::vec3(-10.0, 8.0, -10.0), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1.0, 0.20));
-        Light *l2 = new Light(glm::vec3(10, 10, 10), glm::vec3(0.8, 0.8, 0.8), glm::vec2(1.0, 0.20));
+        Light *l2 = new Light(glm::vec3(10, 30, 10), glm::vec3(0.8, 0.8, 0.8), glm::vec2(1.0, 0.20));
         man->AddObject(s);
         man->AddObject(s2);
         man->AddObject(s3);
@@ -86,8 +115,13 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         man->AddObject(tri2);
         man->AddObject(triR1);
         man->AddObject(triR2);
+        for(int i = 0; i < 20; i++) {
+            man->AddObject(triR1);
+            man->AddObject(triR2);
+        }
         man->AddLight(l);
         man->AddLight(l2);
+        srand(0);
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
         gluOrtho2D(0.0, (GLfloat) 100, 0.0, (GLfloat) 100);
@@ -98,6 +132,34 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         glfwSetInputMode(window, GLFW_CURSOR,GLFW_CURSOR_HIDDEN);
         glPixelStorei(GL_PACK_ALIGNMENT, 8);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
+        struct Text intro;
+        intro.text = "anon presents";
+        intro.start = 0;
+        intro.end = 4;
+        intro.x = vectorstringoffset(intro.text) + 50;
+        intro.y = 50;
+        struct Text intro2;
+        intro2.text = "welcome to cs 148: computer graphics and imaging";
+        intro2.start = 9;
+        intro2.end = 18;
+        intro2.x = vectorstringoffset(intro2.text) + 50;
+        intro2.y = 85;
+        struct Text text;
+        text.text = "we control the translate";
+        text.start = 20;
+        text.end = 30;
+        text.x = 80;
+        text.y = 96;
+        struct Text text2;
+        text2.text = "we control the rotate";
+        text2.start = 22.5;
+        text2.end = 30;
+        text2.x = 80;
+        text2.y = 92;
+        texts.push_back(text);
+        texts.push_back(text2);
+        texts.push_back(intro);
+        texts.push_back(intro2);
     }
     if(glfwWindowShouldClose(window))
         return -1;
@@ -108,6 +170,17 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     s->setTransform(mat);
     //man.RegenerateObjectPositions();
     double xpos = fb.x/2, ypos = fb.y/2;
+    if((player.lastorder == 1) && !(player.lastrow % 8) && (lasttrow != player.lastrow)) {
+        Text fun;
+        fun.text = "WARNING: THIS DEMONSTRATION RUNS IN REALTIME";
+        fun.start = glfwGetTime();
+        fun.end = 7.98;
+        fun.x = vectorstringoffset("WARNING: THIS DEMONSTRATION RUNS IN REALTIME") + 50;
+        fun.y = dtextpos;
+        dtextpos -= 3;
+        texts.push_back(fun);
+        lasttrow = player.lastrow;
+    }
     if(mlocked) {
         glfwGetCursorPos(window, &xpos, &ypos);
         glfwSetCursorPos(window, fb.x/2, fb.y/2);
@@ -121,10 +194,24 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     else if (vertical < -1.5f) {
         vertical = -1.5f;
     }
-    cfg.lookat = glm::vec3(cos(vertical) * sin(horizontal), sin(vertical), cos(horizontal) * cos(vertical));
-    glm::vec3 right = glm::vec3(sin(horizontal - 3.14f / 2.0f), 0, cos(horizontal - 3.14f / 2.0f));
-    cfg.up = glm::cross(right, cfg.lookat);
-    //cfg.up = glm::vec3(0.0, 1.0, 0.0);
+//    cfg.lookat = glm::vec3(cos(vertical) * sin(horizontal), sin(vertical), cos(horizontal) * cos(vertical));
+//    glm::vec3 right = glm::vec3(sin(horizontal - 3.14f / 2.0f), 0, cos(horizontal - 3.14f / 2.0f));
+//    cfg.up = glm::cross(right, cfg.lookat);
+    glm::mat4x4 s3mat = s3->getTransform();
+    if((glfwGetTime()- 0.016) > lastphysrun) {
+        s3velocity -= (-40/60.0)/2.0;
+        s3y += s3velocity;
+        //if(s3y < 0.0)
+            //s3velocity = 0.20;
+        if(!(player.lastrow % 8))
+            s3y = 5.0;
+        lastphysrun = glfwGetTime();
+    }
+    s3mat[3][1] = s3y;
+    s3->setTransform(s3mat);
+    cfg.up = glm::vec3(0.0, 1.0, 0.0);
+    cfg.center = glm::vec3(sin(glfwGetTime()/2.0)*80, 12.0, cos(glfwGetTime()/2.0)*80);
+    cfg.lookat = glm::normalize(glm::vec3(s3mat[3][0], 0.0, s3mat[3][2]) - cfg.center);
     //cfg.lookat = glm::normalize(glm::vec3(mat[3][0], 0.0, mat[3][2]) - cfg.center);
     if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         cfg.center += cfg.lookat*tdiff;
@@ -132,12 +219,12 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
         cfg.center -= cfg.lookat*tdiff;
     }
-    if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-        cfg.center += right*tdiff;
-    }
-    if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-        cfg.center -= right*tdiff;
-    }
+//    if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+//        cfg.center += right*tdiff;
+//    }
+//    if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+//        cfg.center -= right*tdiff;
+//    }
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         return -1;
     }
@@ -151,6 +238,7 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
 }
 
 void DrawFrameTest(Scene *t, Framebuffer &fb) {
+    glClear(GL_COLOR_BUFFER_BIT);
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glLoadIdentity();
@@ -161,12 +249,14 @@ void DrawFrameTest(Scene *t, Framebuffer &fb) {
     glDisable(GL_LIGHTING);
     glColor3f(1,1,1);
     glBindTexture(GL_TEXTURE_2D, fb.textureid);
-    glBegin(GL_QUADS);
-    glTexCoord2f(0, 0); glVertex3f(0, 0, 0);
-    glTexCoord2f(0, 1); glVertex3f(0, 100, 0);
-    glTexCoord2f(1, 1); glVertex3f(100, 100, 0);
-    glTexCoord2f(1, 0); glVertex3f(100, 0, 0);
-    glEnd();
+    if(glfwGetTime() > 8.0) {
+        glBegin(GL_QUADS);
+        glTexCoord2f(0, 0); glVertex3f(0, 0, 0);
+        glTexCoord2f(0, 1); glVertex3f(0, 100, 0);
+        glTexCoord2f(1, 1); glVertex3f(100, 100, 0);
+        glTexCoord2f(1, 0); glVertex3f(100, 0, 0);
+        glEnd();
+    }
 
     glDisable(GL_TEXTURE_2D);
     glPopMatrix();
@@ -181,14 +271,23 @@ void DrawFrameTest(Scene *t, Framebuffer &fb) {
     glRasterPos2i(0,0);
     //glDrawPixels(fb.x, fb.y, GL_RGB, GL_UNSIGNED_BYTE, fb.fb);
     glColor3f(1.0, 1.0, 1.0);
-    glRasterPos2i(0, 97);
-    glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)(std::string("Location: ") + StringifyVec3(cfg.center)).c_str());
-    glRasterPos2i(0, 94);
-    glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)(std::string("Looking at: ") + StringifyVec3(cfg.lookat)).c_str());
-    glRasterPos2i(0, 91);
-    glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)(std::string("Using backend: ") + BackendName[currentbackend]).c_str());
-    glRasterPos2i(0, 88);
-    glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)("t - " + std::to_string(lastfps) + " FPS").c_str());
+    float cur_time = glfwGetTime();
+    for(Text t : texts) {
+        float start = t.start;
+        float end = t.end;
+        if((start < cur_time) && end > cur_time) {
+            glRasterPos2i(t.x, t.y);
+            glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)t.text.c_str());
+        }
+    }
+    //glRasterPos2i(0, 97);
+//    glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)(std::string("Location: ") + StringifyVec3(cfg.center)).c_str());
+//    glRasterPos2i(0, 94);
+//    glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)(std::string("Looking at: ") + StringifyVec3(cfg.lookat)).c_str());
+//    glRasterPos2i(0, 91);
+//    glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)(std::string("Using backend: ") + BackendName[currentbackend]).c_str());
+//    glRasterPos2i(0, 88);
+//    glutBitmapString(GLUT_BITMAP_9_BY_15, (unsigned char*)("t - " + std::to_string(lastfps) + " FPS").c_str());
     glfwSwapBuffers(window);
     glfwPollEvents();
     gettimeofday(&present, NULL);
