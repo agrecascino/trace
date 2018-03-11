@@ -274,10 +274,10 @@ __kernel void _main(__write_only image2d_t img, uint width, uint height, uint tr
     uint nvy  =  fast_rand(nvx);
     uint nvz  =  fast_rand(nvy);
     float3 noise = { ((int)nvx-16384.0)/655360.0f, ((int)nvy-16384.0)/655360.0f, ((int)nvz-16384.0)/655360.0f};
-    r.direction    = normalize(camright*x + (camera.up * y) + camera.lookat/* + noise*/);
+    r.direction    = normalize(camright*x + (camera.up * y) + camera.lookat + noise);
     float4 color = trace(&r, &scene);
     //float4 color = { scene.lights[0].pos.x, scene.lights[0].pos.y, scene.lights[0].pos.z, 1.0 };
     //float4 color = { 1, 1, 1, 1};
-    int2 xy = {/*(int)(*/get_global_id(0)/* + (nvx/8192.0)) % width*/, /*(int)(*/get_global_id(1)/* + (nvz/8192.0)) % height*/};
+    int2 xy = {(int)(get_global_id(0) + (nvx/8192.0)) % width, (int)(get_global_id(1) + (nvz/8192.0)) % height};
     write_imagef(img, xy, color);
 }                                 

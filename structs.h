@@ -7,6 +7,12 @@
 #include <CL/cl.h>
 #include <GL/glew.h>
 
+enum MatType {
+    DIFFUSE_GLOSS,
+    REFLECT_REFRACT,
+    REFLECT
+};
+
 struct CameraConfigCL {
     cl_float3 center;
     cl_float3 lookat;
@@ -15,7 +21,11 @@ struct CameraConfigCL {
 
 struct MaterialCL {
     cl_float3 color;
-    cl_int reflective;
+    MatType type;
+    float rindex;
+    float diffc;
+    float specc;
+    float specexp;
 };
 
 struct LightCL {
@@ -60,7 +70,11 @@ struct Framebuffer {
 
 struct Material {
     glm::vec3 color;
-    bool reflective = false;
+    MatType type;
+    float rindex;
+    float diffc;
+    float specc;
+    float specexp;
 };
 
 struct Light {

@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <assert.h>
 
+
 struct Sample {
     Sample() {
         finetune = 0;
@@ -266,8 +267,8 @@ public:
                 TickReturn ret = PlayOneTick(i, row, tick);
                 int16_t *audio = new int16_t[ret.nsamples*2];
                 for(uint64_t s = 0; s < ret.nsamples; s++) {
-                    audio[s*2] = ret.audio[0][s] + ret.audio[1][s]*(0.4);
-                    audio[(s*2) + 1] = ret.audio[1][s] + ret.audio[0][s]*(0.4);
+                    audio[s*2] = ret.audio[0][s] + ret.audio[1][s]*0.5;
+                    audio[(s*2) + 1] = ret.audio[1][s]  + ret.audio[0][s]*0.5;
                 }
                 delete[] ret.audio[0];
                 delete[] ret.audio[1];
@@ -360,11 +361,16 @@ nextorder:
                 }
             }
             if(!tick) {
+                std::cout << n.period;
+                std::cout << " ";
+                std::cout << (int)n.sample;
+                std::cout << " ";
                 if(n.sample != 0) {
                     state.cstate[i].latchedsample = n.sample;
                     state.cstate[i].latchedvolume = mod.samples[n.sample - 1].volume;
                     state.cstate[i].livevolume = mod.samples[n.sample - 1].volume;
                 }
+                bool unhit = false;
 
                 if(n.period != 0) {
                     if(!state.cstate[i].livesample) {
@@ -379,6 +385,11 @@ nextorder:
                         state.cstate[i].samplepoint = 0;
                         state.cstate[i].liveperiod = state.cstate[i].latchedperiod;
                     }
+                }
+                if(unhit) {
+                    std::cout << (int)state.cstate[i].livesample << std::endl;
+                    std::cout << state.cstate[i].samplepoint << std::endl;
+                    std::cout << state.cstate[i].liveperiod << std::endl;
                 }
 nosample:
                 //Effects that are performed once a row, on the zero tick.
@@ -492,7 +503,7 @@ nosample:
                         Sample s = mod.samples[state.cstate[i].livesample - 1];
                         double a = s.data[(uint64_t)state.cstate[i].samplepoint];
                         assert((uint64_t)state.cstate[i].samplepoint < s.length);
-                        //ret.audio[i % 2][sample] += ((a*255)*(state.cstate[i].livevolume/64.0))/mod.patterns[mod.orders[order]].rows[0].nchannels*2;
+                        ret.audio[i % 2][sample] += ((a*256)*(state.cstate[i].livevolume/64.0))/mod.patterns[mod.orders[order]].rows[0].nchannels*2;
                         state.cstate[i].samplepoint += (7093789.2/(state.cstate[i].liveperiod*2))/44100.0;
                         //state.cstate[i].samplepoint += 44100.0/(7093789.2 / state.cstate[i].liveperiod*2);
                         //state.cstate[i].samplepoint += 0.03125;
@@ -500,10 +511,14 @@ nosample:
                 }
             }
         }
+        if(!tick)
+            std::cout << std::endl;
         return ret;
     }
+
     std::atomic<uint64_t> lastrow;
     std::atomic<uint64_t> lastorder;
+
 private:
     int LoadSampleData(std::fstream &moduledata) {
         for(uint64_t i = 0; i < mod.nsamples; i++) {
@@ -554,6 +569,7 @@ private:
             mod.samples[i].length |= (unsigned long)moduledata.get() << 8;
             mod.samples[i].length |= moduledata.get();
             mod.samples[i].length *= 2;
+            std::cout << mod.samples[i].length << std::endl;
             mod.samples[i].finetune = moduledata.get();
             mod.samples[i].volume = moduledata.get();
             mod.samples[i].loopstart |= (unsigned long)moduledata.get() << 8;
@@ -646,7 +662,6 @@ private:
         }
         return 1;
     }
-
     PaStream *stream;
     PeriodCorrector corrector;
     Verbosity verbosity = NONE;
