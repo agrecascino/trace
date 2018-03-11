@@ -79,7 +79,7 @@ Scene::Scene(RenderBackend backend, size_t nthreads,
         kernel = clCreateKernel(program, "_main", NULL);
     }
     current_id = 0;
-    fast_srand(0);
+    fast_srand(123);
 }
 
 OwnedHandle Scene::AddObject(Intersectable* obj) {
@@ -167,7 +167,10 @@ void Scene::TranslateAndRotate() {
             m.color.s[0] = mat.color.x;
             m.color.s[1] = mat.color.y;
             m.color.s[2] = mat.color.z;
-            m.reflective = mat.reflective;
+            m.type = mat.type;
+            m.diffc = mat.diffc;
+            m.specc = mat.specc;
+            m.specexp = mat.specexp;
             triangles_buf[tc].mat = m;
             tc++;
         } else if(typeid(*intersectables[i]) == typeid(Sphere)) {
@@ -184,7 +187,10 @@ void Scene::TranslateAndRotate() {
             m.color.s[0] = mat.color.x;
             m.color.s[1] = mat.color.y;
             m.color.s[2] = mat.color.z;
-            m.reflective = mat.reflective;
+            m.type = mat.type;
+            m.diffc = mat.diffc;
+            m.specc = mat.specc;
+            m.specexp = mat.specexp;
             spheres_buf[sc].mat = m;
             sc++;
         }
@@ -504,7 +510,9 @@ void Scene::render(Framebuffer &fb) {
             cam.up.s[0] = config.up.x;
             cam.up.s[1] = config.up.y;
             cam.up.s[2] = config.up.z;
+            uint32_t r = fast_rand();
             cl_err = clSetKernelArg(kernel, 9, sizeof(CameraConfigCL),(void*)&cam);
+            cl_err = clSetKernelArg(kernel, 10, sizeof(cl_uint),(void*)&r);
             stateok();
             glFinish();
             stateok();

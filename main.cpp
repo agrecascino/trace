@@ -63,7 +63,7 @@ ModulePlayer player(f);
 std::vector<Text> texts;
 
 void playmodule() {
-    player.playModule();
+    //player.playModule();
 }
 
 float vectorstringoffset(std::string s) {
@@ -85,10 +85,13 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         printVec3(cfg.up);
         man->SetCameraConfig(cfg);
         Material reflect;
-        reflect.reflective = true;
+        reflect.type = REFLECT;
         reflect.color = glm::vec3(0.0, 0.7, 0.0);
         Material white_unreflective;
         white_unreflective.color = glm::vec3(1.0, 1.0, 1.0);
+        white_unreflective.diffc = 1.0;
+        white_unreflective.specexp = 0;
+        white_unreflective.specc = 0;
         glm::vec3 tris[3] = {glm::vec3(40.0, -3.0, -40.0), glm::vec3(-40.0, -3.0, 40.0), glm::vec3(-40.0, -3.0, -40.0)};
         Triangle *tri = new Triangle(tris, white_unreflective);
         glm::vec3 tris2[3] = {glm::vec3(40.0, -3.0, -40.0), glm::vec3(-40.0, -3.0, 40.0), glm::vec3(40.0, -3.0, 40.0)};
@@ -99,15 +102,22 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         Triangle *triR2 = new Triangle(trisR2, reflect);
         Material r, g, b;
         r.color = glm::vec3(1.0, 0.0, 0.0);
-        r.reflective = true;
+        r.type = REFLECT;
         g.color = glm::vec3(0.0, 1.0, 0.0);
         b.color = glm::vec3(0.0, 0.0, 1.0);
-        b.reflective = false;
+        b.type = DIFFUSE_GLOSS;
+        b.diffc = 0.6;
+        b.specc = 0.4;
+        b.specexp = 25;
+        g.type = DIFFUSE_GLOSS;
+        g.diffc = 0.3;
+        g.specc = 0.7;
+        g.specexp = 20;
         s = new Sphere(glm::vec3(0.0, 0.0, 0.0), 2, b);
         Sphere *s2 = new Sphere(glm::vec3(10.0, 0.0, 0.0), 2, g);
         s3 = new Sphere(glm::vec3(10.0, 3.0, 10.0), 4, r);
-        Light *l = new Light(glm::vec3(-10.0, 8.0, -10.0), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1.0, 0.20));
-        Light *l2 = new Light(glm::vec3(10, 30, 10), glm::vec3(0.8, 0.8, 0.8), glm::vec2(1.0, 0.20));
+        Light *l = new Light(glm::vec3(-10.0, 8.0, -10.0), glm::vec3(1.0, 0.0, 1.0), glm::vec2(1.0, 0.20));
+        Light *l2 = new Light(glm::vec3(10, 30, 10), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1.0, 0.20));
         man->AddObject(s);
         man->AddObject(s2);
         man->AddObject(s3);
@@ -115,10 +125,10 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         man->AddObject(tri2);
         man->AddObject(triR1);
         man->AddObject(triR2);
-        for(int i = 0; i < 20; i++) {
-            man->AddObject(triR1);
-            man->AddObject(triR2);
-        }
+//        for(int i = 0; i < 20; i++) {
+//            man->AddObject(triR1);
+//            man->AddObject(triR2);
+//        }
         man->AddLight(l);
         man->AddLight(l2);
         srand(0);
@@ -156,10 +166,10 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         text2.end = 30;
         text2.x = 80;
         text2.y = 92;
-        texts.push_back(text);
-        texts.push_back(text2);
-        texts.push_back(intro);
-        texts.push_back(intro2);
+//        texts.push_back(text);
+//        texts.push_back(text2);
+//        texts.push_back(intro);
+//        texts.push_back(intro2);
     }
     if(glfwWindowShouldClose(window))
         return -1;
@@ -170,17 +180,17 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     s->setTransform(mat);
     //man.RegenerateObjectPositions();
     double xpos = fb.x/2, ypos = fb.y/2;
-    if((player.lastorder == 1) && !(player.lastrow % 8) && (lasttrow != player.lastrow)) {
-        Text fun;
-        fun.text = "WARNING: THIS DEMONSTRATION RUNS IN REALTIME";
-        fun.start = glfwGetTime();
-        fun.end = 7.98;
-        fun.x = vectorstringoffset("WARNING: THIS DEMONSTRATION RUNS IN REALTIME") + 50;
-        fun.y = dtextpos;
-        dtextpos -= 3;
-        texts.push_back(fun);
-        lasttrow = player.lastrow;
-    }
+//    if((player.lastorder == 1) && !(player.lastrow % 8) && (lasttrow != player.lastrow)) {
+//        Text fun;
+//        fun.text = "WARNING: THIS DEMONSTRATION RUNS IN REALTIME";
+//        fun.start = glfwGetTime();
+//        fun.end = 7.98;
+//        fun.x = vectorstringoffset("WARNING: THIS DEMONSTRATION RUNS IN REALTIME") + 50;
+//        fun.y = dtextpos;
+//        dtextpos -= 3;
+//        texts.push_back(fun);
+//        lasttrow = player.lastrow;
+//    }
     if(mlocked) {
         glfwGetCursorPos(window, &xpos, &ypos);
         glfwSetCursorPos(window, fb.x/2, fb.y/2);
@@ -194,9 +204,9 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     else if (vertical < -1.5f) {
         vertical = -1.5f;
     }
-//    cfg.lookat = glm::vec3(cos(vertical) * sin(horizontal), sin(vertical), cos(horizontal) * cos(vertical));
-//    glm::vec3 right = glm::vec3(sin(horizontal - 3.14f / 2.0f), 0, cos(horizontal - 3.14f / 2.0f));
-//    cfg.up = glm::cross(right, cfg.lookat);
+    cfg.lookat = glm::vec3(cos(vertical) * sin(horizontal), sin(vertical), cos(horizontal) * cos(vertical));
+    glm::vec3 right = glm::vec3(sin(horizontal - 3.14f / 2.0f), 0, cos(horizontal - 3.14f / 2.0f));
+    cfg.up = glm::cross(right, cfg.lookat);
     glm::mat4x4 s3mat = s3->getTransform();
     if((glfwGetTime()- 0.016) > lastphysrun) {
         s3velocity -= (-40/60.0)/2.0;
@@ -209,9 +219,9 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     }
     s3mat[3][1] = s3y;
     s3->setTransform(s3mat);
-    cfg.up = glm::vec3(0.0, 1.0, 0.0);
-    cfg.center = glm::vec3(sin(glfwGetTime()/2.0)*80, 12.0, cos(glfwGetTime()/2.0)*80);
-    cfg.lookat = glm::normalize(glm::vec3(s3mat[3][0], 0.0, s3mat[3][2]) - cfg.center);
+    //cfg.up = glm::vec3(0.0, 1.0, 0.0);
+    //cfg.center = glm::vec3(sin(glfwGetTime()/2.0)*80, 12.0, cos(glfwGetTime()/2.0)*80);
+    //cfg.lookat = glm::normalize(glm::vec3(s3mat[3][0], 0.0, s3mat[3][2]) - cfg.center);
     //cfg.lookat = glm::normalize(glm::vec3(mat[3][0], 0.0, mat[3][2]) - cfg.center);
     if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         cfg.center += cfg.lookat*tdiff;
@@ -219,12 +229,12 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
         cfg.center -= cfg.lookat*tdiff;
     }
-//    if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-//        cfg.center += right*tdiff;
-//    }
-//    if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-//        cfg.center -= right*tdiff;
-//    }
+    if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+        cfg.center += right*tdiff;
+    }
+    if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+        cfg.center -= right*tdiff;
+    }
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         return -1;
     }
@@ -249,7 +259,7 @@ void DrawFrameTest(Scene *t, Framebuffer &fb) {
     glDisable(GL_LIGHTING);
     glColor3f(1,1,1);
     glBindTexture(GL_TEXTURE_2D, fb.textureid);
-    if(glfwGetTime() > 8.0) {
+    if(/*glfwGetTime() > 8.0*/ true) {
         glBegin(GL_QUADS);
         glTexCoord2f(0, 0); glVertex3f(0, 0, 0);
         glTexCoord2f(0, 1); glVertex3f(0, 100, 0);
