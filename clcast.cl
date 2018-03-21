@@ -164,6 +164,26 @@ void cast(struct Ray* r, struct Scene* scene, float3 *normal, float *spherelowt,
     }
 }
 
+float fresnel(float3 inc, float3 norm, float rdex) {
+    float idotn = dot(inc, norm);
+    float eta_i = 1.0;
+    float eta_t = rdex;
+    if(idotn > 0.0) {
+        eta_i = eta_t;
+        eta_t = 1.0;
+    }
+    
+    float sin_t = sqrt(max(0.0, (eta_i / eta_t * (1.0 - idotn*idotn))));
+    if(sin_t > 1.0) {
+        return 1.0;
+    }
+    float cos_t = sqrt(max((1.0 - sin_t * sin_t), 0.0));
+    float cos_i = fabs(cos_t);
+    float r_s = ((eta_t * cos_i) - (eta_i * cos_t)) / ((eta_t * cos_i) + (eta_i * cos_t));
+    float r_p = ((eta_i * cos_i) - (eta_t * cos_t)) / ((eta_i * cos_i) + (eta_t * cos_t));
+    return (r_s * r_s + r_p * r_p) / 2.0;
+}
+
 float4 trace(struct Ray *r, struct Scene* scene) {
     float4 color = {(100/255.0), (149/255.0), (237/255.0), 1.0};
     float spherelowt = 1024.0;
@@ -179,7 +199,7 @@ float4 trace(struct Ray *r, struct Scene* scene) {
     /*if(reflect) {
         afactor *= 0.8;
         float3 refd = normalize(r->direction - 2.0f*dot(r->direction, lnormal)*lnormal);
-        r->origin = hp + refd*0.001f;
+        r->origin = hp + refd*0.001f;a
         r->direction = refd;
         spherelowt = 1024;
         cast(r, scene, &lnormal, &spherelowt, &color2, &reflect);
@@ -200,11 +220,12 @@ float4 trace(struct Ray *r, struct Scene* scene) {
     }*/
     if (mat.type == REFLECT) {
         int depth = 0;
-        afactor *= 0.8;
-	    while((mat.type == REFLECT) && depth < 3) { //set depth to 0 at the first ray 
+	    while((mat.type == REFLECT) && depth < 3) { //set depth to 0 at the first ray           
             if(dot(lnormal, -r->direction) < 0) {
                 lnormal = -lnormal;
             }
+            float kr = fresnel(r->direction, lnormal, mat.rindex);
+		    afactor *= kr;  
 		    depth++;
 		    float3 refd = normalize(r->direction - 2.0f*dot(r->direction, lnormal)*lnormal);
 		    r->origin = hp + refd*0.001f;
@@ -214,7 +235,6 @@ float4 trace(struct Ray *r, struct Scene* scene) {
 		    if(spherelowt > 1023)
 		        break;
 		    hp = r->origin + spherelowt*r->direction;
-		    afactor *= 0.8;
 	    }
 	    if((spherelowt > 1023) || (mat.type == REFLECT))
 		    return color * afactor;
