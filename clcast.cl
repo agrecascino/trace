@@ -196,28 +196,6 @@ float4 trace(struct Ray *r, struct Scene* scene) {
     float3 hp = r->origin + spherelowt*r->direction;
     if(spherelowt > 1023)
         return color * afactor;
-    /*if(reflect) {
-        afactor *= 0.8;
-        float3 refd = normalize(r->direction - 2.0f*dot(r->direction, lnormal)*lnormal);
-        r->origin = hp + refd*0.001f;a
-        r->direction = refd;
-        spherelowt = 1024;
-        cast(r, scene, &lnormal, &spherelowt, &color2, &reflect);
-        if(spherelowt > 1023)
-            return color * afactor;
-        else if(reflect) {
-            afactor *= 0.8;
-            float3 refd2 = normalize(r->direction - 2.0f*dot(r->direction, lnormal)*lnormal);
-            r->origin = hp + refd2*0.001f;
-            r->direction = refd2;
-            spherelowt = 1024;
-            cast(r, scene, &lnormal, &spherelowt, &color2, &reflect);
-            if(spherelowt > 1023)
-                return color * afactor;
-            else if(reflect)
-                return color * afactor;
-        }
-    }*/
     if (mat.type == REFLECT) {
         int depth = 0;
 	    while((mat.type == REFLECT) && depth < 3) { //set depth to 0 at the first ray           
@@ -225,7 +203,7 @@ float4 trace(struct Ray *r, struct Scene* scene) {
                 lnormal = -lnormal;
             }
             float kr = fresnel(r->direction, lnormal, mat.rindex);
-		    afactor *= kr;  
+		    afactor *= kr * 0.9;  
 		    depth++;
 		    float3 refd = normalize(r->direction - 2.0f*dot(r->direction, lnormal)*lnormal);
 		    r->origin = hp + refd*0.001f;
@@ -282,22 +260,23 @@ __kernel void _main(__write_only image2d_t img, uint width, uint height, uint tr
     scene.lightCount = lightcount;
     float dx = 1.0f / (float)width;
     float dy = 1.0f / (float)height;
-    float x = (float)(get_global_id(0) % width) / (float)(width);
-	
-    float y = (float)(get_global_id(1)) / (float)(height);	
-    float3 camright = cross(camera.up, camera.lookat) * ((float)width/height);
-    x = x -0.5f;
-    y = y -0.5f;				
-    struct Ray r;
-    r.origin = camera.center;   
-    uint nvx  =  fast_rand(sr+get_global_id(0)*width + get_global_id(1));
-    uint nvy  =  fast_rand(nvx);
-    uint nvz  =  fast_rand(nvy);
-    float3 noise = { ((int)nvx-16384.0)/655360.0f, ((int)nvy-16384.0)/655360.0f, ((int)nvz-16384.0)/655360.0f};
-    r.direction    = normalize(camright*x + (camera.up * y) + camera.lookat/* + noise*/);
-    float4 color = trace(&r, &scene);
-    //float4 color = { scene.lights[0].pos.x, scene.lights[0].pos.y, scene.lights[0].pos.z, 1.0 };
-    //float4 color = { 1, 1, 1, 1};
-    int2 xy = {/*(int)(*/get_global_id(0)/* + (nvx/8192.0)) % width*/, /*(int)(*/get_global_id(1)/* + (nvz/8192.0)) % height*/};
-    write_imagef(img, xy, color);
+    float y = (float)(get_global_id(0)) / (float)(height);	
+    for(uint i = 0; i < width; i++) {
+            float x = (float)(i % width) / (float)(width);
+            float3 camright = cross(camera.up, camera.lookat) * ((float)width/height);
+            x = x -0.5f;
+            y = y -0.5f;				
+            struct Ray r;
+            r.origin = camera.center;   
+            //uint nvx  =  fast_rand(sr+get_global_id(0)*width + get_global_id(1));
+            //uint nvy  =  fast_rand(nvx);
+            //uint nvz  =  fast_rand(nvy);
+            //float3 noise = { ((int)nvx-16384.0)/655360.0f, ((int)nvy-16384.0)/655360.0f, ((int)nvz-16384.0)/655360.0f};
+            r.direction    = normalize(camright*x + (camera.up * y) + camera.lookat/* + noise*/);
+            float4 color = trace(&r, &scene);
+            //float4 color = { scene.lights[0].pos.x, scene.lights[0].pos.y, scene.lights[0].pos.z, 1.0 };
+            //float4 color = { 1, 1, 1, 1};
+            int2 xy = {/*(int)(*/i/* + (nvx/8192.0)) % width*/, /*(int)(*/get_global_id(0)/* + (nvz/8192.0)) % height*/};
+            write_imagef(img, xy, color);
+    }
 }                                 

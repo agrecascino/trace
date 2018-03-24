@@ -209,13 +209,13 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         t3.end = 2321312312;
         t3.x = vectorstringoffset(t3.text) + 50;
         t3.y = 50;
-        texts.push_back(t3);
+        //texts.push_back(t3);
 //        texts.push_back(text);
 //        texts.push_back(text2);
 //        texts.push_back(intro);
 //        texts.push_back(intro2);
     }
-    texts[0].y = 50 + 5*sin(1.5*glfwGetTime());
+//    texts[0].y = 50 + 5*sin(1.5*glfwGetTime());
     if(glfwWindowShouldClose(window))
         return -1;
     float tdiff = (glfwGetTime() - lasttime)*32;
@@ -288,17 +288,17 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         man->SwitchBackend(currentbackend);
     }
     //cudaGetLastError();
-    float t = glfwGetTime();
-#pragma omp parallel for
-    for(size_t x = 0; x < 1600; x++) {
-        for(size_t y = 0; y < 900; y++) {
-            uint8_t amp = (sine_wave[(x/4 + (int)(t*200)) & 0xff] + sine_wave[(y/4 + (int)(glfwGetTime()*50)) & 0xff] + (int)(glfwGetTime()*10)) + sine_wave[(x/4+y/4) & 0xff] + sine_wave[(int)(x/4+134*(t))&0xff];
-            fb.fb[y*1600*3 + x*3] = ((uint16_t)amp * 16) >> 8;
-            fb.fb[y*1600*3 + x*3 + 1] = ((uint16_t)amp * 32) >> 8;
-            fb.fb[y*1600*3 + x*3 + 2] = ((uint16_t)amp * 64) >> 8;
+//    float t = glfwGetTime();
+//#pragma omp parallel for
+//    for(size_t x = 0; x < 1600; x++) {
+//        for(size_t y = 0; y < 900; y++) {
+//            uint8_t amp = (sine_wave[(x/4 + (int)(t*200)) & 0xff] + sine_wave[(y/4 + (int)(glfwGetTime()*50)) & 0xff] + (int)(glfwGetTime()*10)) + sine_wave[(x/4+y/4) & 0xff] + sine_wave[(int)(x/4+134*(t))&0xff];
+//            fb.fb[y*1600*3 + x*3] = ((uint16_t)amp * 16) >> 8;
+//            fb.fb[y*1600*3 + x*3 + 1] = ((uint16_t)amp * 32) >> 8;
+//            fb.fb[y*1600*3 + x*3 + 2] = ((uint16_t)amp * 64) >> 8;
 
-        }
-    }
+//        }
+//    }
     man->SetCameraConfig(cfg);
     return 0;
 }
@@ -333,9 +333,9 @@ void DrawFrameTest(Scene *t, Framebuffer &fb) {
 
     glMatrixMode(GL_MODELVIEW);
     glDeleteTextures(1, &fb.textureid);
-    glClear(GL_COLOR_BUFFER_BIT);
+    //glClear(GL_COLOR_BUFFER_BIT);
     glRasterPos2i(0,0);
-    glDrawPixels(fb.x, fb.y, GL_RGB, GL_UNSIGNED_BYTE, fb.fb);
+    //glDrawPixels(fb.x, fb.y, GL_RGB, GL_UNSIGNED_BYTE, fb.fb);
     glColor3f(1.0, 1.0, 1.0);
     float cur_time = glfwGetTime();
     for(Text t : texts) {
