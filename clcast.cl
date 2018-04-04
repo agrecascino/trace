@@ -260,22 +260,18 @@ __kernel void _main(__write_only image2d_t img, uint width, uint height, uint tr
     scene.lightCount = lightcount;
     float dx = 1.0f / (float)width;
     float dy = 1.0f / (float)height;
-    float y = (float)(get_global_id(0)) / (float)(height);	
-    for(uint i = 0; i < width; i++) {
-            float x = (float)(i % width) / (float)(width);
+    //float y = (float)(get_global_id(0)) / (float)(height);
+    float widthhalves = width/2;
+    for(uint i = widthhalves*(get_global_id(1)-1); i < widthhalves*(get_global_id(1)); i++) {
+            float y = get_global_id(0)/(float)height;
+            float x = (float)(i) / (float)(width);
             float3 camright = cross(camera.up, camera.lookat) * ((float)width/height);
             x = x -0.5f;
             y = y -0.5f;				
             struct Ray r;
-            r.origin = camera.center;   
-            //uint nvx  =  fast_rand(sr+get_global_id(0)*width + get_global_id(1));
-            //uint nvy  =  fast_rand(nvx);
-            //uint nvz  =  fast_rand(nvy);
-            //float3 noise = { ((int)nvx-16384.0)/655360.0f, ((int)nvy-16384.0)/655360.0f, ((int)nvz-16384.0)/655360.0f};
+            r.origin = camera.center;
             r.direction    = normalize(camright*x + (camera.up * y) + camera.lookat/* + noise*/);
             float4 color = trace(&r, &scene);
-            //float4 color = { scene.lights[0].pos.x, scene.lights[0].pos.y, scene.lights[0].pos.z, 1.0 };
-            //float4 color = { 1, 1, 1, 1};
             int2 xy = {/*(int)(*/i/* + (nvx/8192.0)) % width*/, /*(int)(*/get_global_id(0)/* + (nvz/8192.0)) % height*/};
             write_imagef(img, xy, color);
     }

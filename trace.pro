@@ -5,7 +5,7 @@ CONFIG -= qt
 
 LIBS += -lGLEW -lglfw -lGL -lgomp -lGLU -lpthread -lembree3 -lglut -lOpenCL -lportaudio
 
-QMAKE_CXXFLAGS = -fopenmp -std=gnu++14 -ffast-math -O0 -pthread
+QMAKE_CXXFLAGS = -fopenmp -std=gnu++14 -ffast-math -Os -pthread
 
 HEADERS += \
     ctpl.h \
@@ -15,9 +15,11 @@ HEADERS += \
     triangle.h \
     sphere.h \
     scene.h \
-    player.h
+    player.h \
+    libfont.h
 SOURCES += main.cpp \
     triangle.cpp \
     sphere.cpp \
     scene.cpp \
-    structs.cpp
+    structs.cpp \
+    libfont.cpp
