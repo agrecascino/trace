@@ -46,7 +46,7 @@ bool mlocked = true;
 timeval past, present;
 CameraConfig cfg;
 float lasttime;
-RenderBackend currentbackend = (RenderBackend)5;
+RenderBackend currentbackend = OpenCL;
 float s3velocity = 0.0;
 float s3y = 3.0;
 float dtextpos = 96;
@@ -133,7 +133,7 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         white_unreflective.diffc = 1.0;
         white_unreflective.specexp = 0;
         white_unreflective.specc = 0;
-        white_unreflective.rindex = 1.8;
+        white_unreflective.rindex = 1.0;
         glm::vec3 tris[3] = {glm::vec3(40.0, -3.0, -40.0), glm::vec3(-40.0, -3.0, 40.0), glm::vec3(-40.0, -3.0, -40.0)};
         Triangle *tri = new Triangle(tris, white_unreflective);
         glm::vec3 tris2[3] = {glm::vec3(40.0, -3.0, -40.0), glm::vec3(-40.0, -3.0, 40.0), glm::vec3(40.0, -3.0, 40.0)};
@@ -390,31 +390,6 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     c.x *= sin(t)+1;
     c.y *= sin(t)+1;
     c = m * c;
-    //    for(size_t x = 0; x < 800; x++) {
-    //        for(size_t y = 0; y < 450; y++) {
-    //            glm::vec3 l((int)x - 400, (int)y - 225 , 0);
-    //            if(y % 2 == 0 && (t > 8.0)) {
-    //                l.x += cos(t)*200;
-    //                l.y += sin(t)*200;
-    //                l.x *= sin(t)+1;
-    //                l.y *= sin(t)+1;
-    //                l = m * l;
-    //            } else {
-    //                l.x += cos(t+0.5)*200;
-    //                l.y += sin(t+0.5)*200;
-    //                l.x *= sin(t+0.5)+1;
-    //                l.y *= sin(t+0.5)+1;
-    //                l = m2 * l;
-    //            }
-    //            float xdif = l.x-c.x;
-    //            float ydif = l.y-c.y;
-    //            float m = std::fmin(1.0f,(1.0f/(sqrtf(xdif*xdif + ydif*ydif)/256.0f)));
-    //            glm::vec3 color = f(l)*(float)std::fmin(1.0f, glfwGetTime()/4.0);
-    //            fb.fb[y*800*3 + x*3] = color.r;
-    //            fb.fb[y*800*3 + x*3 + 1] = color.g;
-    //            fb.fb[y*800*3 + x*3 + 2] = color.b;
-    //        }
-    //    }
     //cudaGetLastError();
     //    float t = glfwGetTime();
     //#pragma omp parallel for
@@ -427,33 +402,64 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
 
     //        }
     //    }
-    memset(fb.fb, 255, fb.x*fb.y*3);
-    for( float y = 1.3 ; y >= -1.1 ; y -= 0.0075 ){
-        for( float x = -1.2 ; x <= 1.2 ; x += 0.00625 ) {
-            uint32_t xa = 208 + (x + 1.2)/0.00625;
-            uint32_t ya = 96 +  ((y+1.1) / 0.0075);
-            if( pow((x*x+y*y-1.0),3) - x*x*y*y*y <= 0.0 ) {
-                //                float amp  = 1.0;
-                //                float tadj = t-4;
-                //                if(t > 6.0) {
-                //                    amp = (cos(2*sqrt(((x/4)*(x/4)) + (y/4*(y/4))) + t-6.0) + 1.0)/2.0;
-                //                }
-                //                if(t > 8.9) {
-                //                    amp = 0;
-                //                }
-                //                if(((rand()) % 5  != 0) || (t < 6)) {
-                //                    fb.fb[ya*800*3 + xa*3] = 255 * amp;
-                //                    fb.fb[ya*800*3 + xa*3  + 1] = 0;
-                //                    fb.fb[ya*800*3 + xa*3  + 2] = 138 * amp;
-                //                } else if(t > 6) {
-                //                    fb.fb[ya*800*3 + xa*3] = 255 * amp;
-                //                    fb.fb[ya*800*3 + xa*3  + 1] = 255 * amp;
-                //                    fb.fb[ya*800*3 + xa*3  + 2] = 255 * amp;
-                //                }
-                float amp = ((fmin(fmax(t, 8.0),10.0)-8.0)/2.0);
-                fb.fb[ya*800*3 + xa*3] = 255 * amp;
-                fb.fb[ya*800*3 + xa*3 + 1] = 255 * amp;
-                fb.fb[ya*800*3 + xa*3 + 2] = 255 * amp;
+    if(t < 16.0) {
+        memset(fb.fb, 255, fb.x*fb.y*3);
+        for(int i = 0; i < 2; i++) {
+            for( float y = 1.3 ; y >= -1.1 ; y -= 0.0075 ){
+                for( float x = -1.2 ; x <= 1.2 ; x += 0.00625 ) {
+                    uint32_t xa = 208+t*128 + ((x + 1.2)/0.00625) + i*400;
+                    uint32_t ya = 96 +  ((y+1.1) / 0.0075);
+                    if( pow((x*x+y*y-1.0),3) - x*x*y*y*y <= 0.0 ) {
+                        //                float amp  = 1.0;
+                        //                float tadj = t-4;
+                        //                if(t > 6.0) {
+                        //                    amp = (cos(2*sqrt(((x/4)*(x/4)) + (y/4*(y/4))) + t-6.0) + 1.0)/2.0;
+                        //                }
+                        //                if(t > 8.9) {
+                        //                    amp = 0;
+                        //                }
+                        //                if(((rand()) % 5  != 0) || (t < 6)) {
+                        //                    fb.fb[ya*800*3 + xa*3] = 255 * amp;
+                        //                    fb.fb[ya*800*3 + xa*3  + 1] = 0;
+                        //                    fb.fb[ya*800*3 + xa*3  + 2] = 138 * amp;
+                        //                } else if(t > 6) {
+                        //                    fb.fb[ya*800*3 + xa*3] = 255 * amp;
+                        //                    fb.fb[ya*800*3 + xa*3  + 1] = 255 * amp;
+                        //                    fb.fb[ya*800*3 + xa*3  + 2] = 255 * amp;
+                        //                }
+                        float amp = ((fmin(fmax(t, 8.0),10.0)-8.0)/2.0);
+                        fb.fb[ya*800*3 + xa*3] = 255 * amp;
+                        fb.fb[ya*800*3 + xa*3 + 1] = 255 * amp;
+                        fb.fb[ya*800*3 + xa*3 + 2] = 255 * amp;
+                    }
+                }
+            }
+        }
+    } else {
+        float amp = ((fmin(fmax(t, 16.0),18.0)-16.0)/2.0);
+        for(size_t x = 0; x < 800; x++) {
+            for(size_t y = 0; y < 450; y++) {
+                glm::vec3 l((int)x - 400, (int)y - 225 , 0);
+                if(y % 2 == 0 && (t > 22.0)) {
+                    l.x += cos(t)*200;
+                    l.y += sin(t)*200;
+                    l.x *= sin(t)+1;
+                    l.y *= sin(t)+1;
+                    l = m * l;
+                } else {
+                    l.x += cos(t+0.5)*200;
+                    l.y += sin(t+0.5)*200;
+                    l.x *= sin(t+0.5)+1;
+                    l.y *= sin(t+0.5)+1;
+                    l = m2 * l;
+                }
+                float xdif = l.x-c.x;
+                float ydif = l.y-c.y;
+                float m = std::fmin(1.0f,(1.0f/(sqrtf(xdif*xdif + ydif*ydif)/256.0f)));
+                glm::vec3 color = f(l)*(float)std::fmin(1.0f, glfwGetTime()/4.0);
+                fb.fb[y*800*3 + x*3] = fmin(255.0, color.r*(1/amp));
+                fb.fb[y*800*3 + x*3 + 1] = fmin(255.0, color.g*(1/amp));
+                fb.fb[y*800*3 + x*3 + 2] = fmin(255.0, color.b*(1/amp));
             }
         }
     }
@@ -485,26 +491,12 @@ void DrawFrameTest(Scene *t, Framebuffer &fb) {
         glEnd();
     }
     float time = glfwGetTime();
-    glPopMatrix();
-
-
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-
-    glMatrixMode(GL_MODELVIEW);
     glDeleteTextures(1, &fb.textureid);
-    glClear(GL_COLOR_BUFFER_BIT);
+    //glClear(GL_COLOR_BUFFER_BIT);
     glRasterPos2i(0,0);
-    glDrawPixels(fb.x, fb.y, GL_RGB, GL_UNSIGNED_BYTE, fb.fb);
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glOrtho(0.0, 100, 0.0, 100, -1.0, 1.0);
-    glMatrixMode(GL_MODELVIEW);
+    //glDrawPixels(fb.x, fb.y, GL_RGB, GL_UNSIGNED_BYTE, fb.fb);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-    glPushMatrix();
-    glLoadIdentity();
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     for(size_t i = 0; i < texts.size(); i++) {
         if((time >texts[i].start) && (time < texts[i].end)) {
@@ -540,8 +532,11 @@ void DrawFrameTest(Scene *t, Framebuffer &fb) {
             delete[] r;
         }
     }
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
     glDisable(GL_TEXTURE_2D);
-
     glfwSwapBuffers(window);
     glfwPollEvents();
     gettimeofday(&present, NULL);
@@ -561,13 +556,13 @@ int main(int argc, char **argv) {
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
     glfwInit();
-    window = glfwCreateWindow(800, 450, "t", NULL, NULL);
+    window = glfwCreateWindow(1920, 1080, "t", NULL, NULL);
     glfwMakeContextCurrent(window);
     glewInit();
     Scene man(currentbackend, 4, PrepFrameTest ,DrawFrameTest);
     Framebuffer fb;
-    fb.x = 800;
-    fb.y = 450;
+    fb.x = 1920;
+    fb.y = 1080;
     fb.fb = (uint8_t*)malloc(fb.x*fb.y*3);
 
     //cudaDeviceSynchronize();

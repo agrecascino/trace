@@ -518,7 +518,7 @@ void Scene::render(Framebuffer &fb) {
             stateok();
             glFinish();
             stateok();
-            size_t worksize[2] = {fb.y, 2};
+            size_t worksize[2] = {fb.y, 16};
             cl_err = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, worksize, NULL, 0, NULL, NULL);
             stateok();
             if(prepframe(this, fb))
@@ -546,8 +546,6 @@ void Scene::render(Framebuffer &fb) {
                 break;
             }
         }
-        drawframe(this, fb);
-        prepframe(this, fb);
     }
 }
 

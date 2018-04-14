@@ -173,12 +173,12 @@ float fresnel(float3 inc, float3 norm, float rdex) {
         eta_t = 1.0;
     }
     
-    float sin_t = sqrt(max(0.0, (eta_i / eta_t * (1.0 - idotn*idotn))));
+    float sin_t = eta_i / eta_t * sqrt(max(0.0, (1.0 - idotn*idotn)));
     if(sin_t > 1.0) {
         return 1.0;
     }
     float cos_t = sqrt(max((1.0 - sin_t * sin_t), 0.0));
-    float cos_i = fabs(cos_t);
+    float cos_i = fabs(cos_i);
     float r_s = ((eta_t * cos_i) - (eta_i * cos_t)) / ((eta_t * cos_i) + (eta_i * cos_t));
     float r_p = ((eta_i * cos_i) - (eta_t * cos_t)) / ((eta_i * cos_i) + (eta_t * cos_t));
     return (r_s * r_s + r_p * r_p) / 2.0;
@@ -261,8 +261,8 @@ __kernel void _main(__write_only image2d_t img, uint width, uint height, uint tr
     float dx = 1.0f / (float)width;
     float dy = 1.0f / (float)height;
     //float y = (float)(get_global_id(0)) / (float)(height);
-    float widthhalves = width/2;
-    for(uint i = widthhalves*(get_global_id(1)-1); i < widthhalves*(get_global_id(1)); i++) {
+    float widthhalves = width/16;
+    for(uint i = widthhalves*(get_global_id(1)); i < widthhalves*(get_global_id(1)+1); i++) {
             float y = get_global_id(0)/(float)height;
             float x = (float)(i) / (float)(width);
             float3 camright = cross(camera.up, camera.lookat) * ((float)width/height);
