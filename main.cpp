@@ -30,6 +30,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <player.h>
 #include "libfont.h"
+#include "bmpread.h"
 
 GLFWwindow *window;
 
@@ -51,6 +52,7 @@ float s3velocity = 0.0;
 float s3y = 3.0;
 float dtextpos = 96;
 int lasttrow = -1;
+bmpread_t bmp;
 struct Text {
     Text() : transform(1.0f){
     }
@@ -184,6 +186,7 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         glfwSetInputMode(window, GLFW_CURSOR,GLFW_CURSOR_HIDDEN);
         glPixelStorei(GL_PACK_ALIGNMENT, 8);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
+        assert(bmpread("example.bmp", BMPREAD_ANY_SIZE, &bmp));
         struct Text intro;
         intro.text = "name presents \129";
         intro.start = 0;
@@ -378,11 +381,16 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         if(loc.y < 0) {
             loc.y = (-loc.y) + 50;
         }
-        int x = (int)(loc.x/50) + (int)(loc.y/50);
-        if(x % 2) {
-            return glm::vec3(83, 212, 230);
-        }
-        return glm::vec3(255, 192, 203);
+        //int x = (int)(loc.x/50) + (int)(loc.y/50);
+        uint16_t xloc  = ((int)loc.x % 153);
+        uint16_t yloc  = ((int)loc.y % 153);
+
+        glm::vec3 color(bmp.data[yloc*153*3 + xloc*3 + 0], bmp.data[yloc*153*3 + xloc*3 + 1], bmp.data[yloc*153*3 + xloc*3 + 2]);
+        return color;
+//        if(x % 2) {
+//            return glm::vec3(83, 212, 230);
+//        }
+//        return glm::vec3(255, 192, 203);
     };
     glm::vec3 c(0, 0, 0);
     c.x += cos(t)*200;
@@ -390,31 +398,31 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     c.x *= sin(t)+1;
     c.y *= sin(t)+1;
     c = m * c;
-    //    for(size_t x = 0; x < 800; x++) {
-    //        for(size_t y = 0; y < 450; y++) {
-    //            glm::vec3 l((int)x - 400, (int)y - 225 , 0);
-    //            if(y % 2 == 0 && (t > 8.0)) {
-    //                l.x += cos(t)*200;
-    //                l.y += sin(t)*200;
-    //                l.x *= sin(t)+1;
-    //                l.y *= sin(t)+1;
-    //                l = m * l;
-    //            } else {
-    //                l.x += cos(t+0.5)*200;
-    //                l.y += sin(t+0.5)*200;
-    //                l.x *= sin(t+0.5)+1;
-    //                l.y *= sin(t+0.5)+1;
-    //                l = m2 * l;
-    //            }
-    //            float xdif = l.x-c.x;
-    //            float ydif = l.y-c.y;
-    //            float m = std::fmin(1.0f,(1.0f/(sqrtf(xdif*xdif + ydif*ydif)/256.0f)));
-    //            glm::vec3 color = f(l)*(float)std::fmin(1.0f, glfwGetTime()/4.0);
-    //            fb.fb[y*800*3 + x*3] = color.r;
-    //            fb.fb[y*800*3 + x*3 + 1] = color.g;
-    //            fb.fb[y*800*3 + x*3 + 2] = color.b;
-    //        }
-    //    }
+        for(size_t x = 0; x < 800; x++) {
+            for(size_t y = 0; y < 450; y++) {
+                glm::vec3 l((int)x - 400, (int)y - 225 , 0);
+                if(y % 2 == 0 && (t > 8.0)) {
+                    l.x += cos(t)*200;
+                    l.y += sin(t)*200;
+                    l.x *= sin(t)+1;
+                    l.y *= sin(t)+1;
+                    //l = m * l;
+                } else {
+                    l.x += cos(t+0.5)*200;
+                    l.y += sin(t+0.5)*200;
+                    l.x *= sin(t+0.5)+1;
+                    l.y *= sin(t+0.5)+1;
+                    //l = m2 * l;
+                }
+                float xdif = l.x-c.x;
+                float ydif = l.y-c.y;
+                float m = std::fmin(1.0f,(1.0f/(sqrtf(xdif*xdif + ydif*ydif)/256.0f)));
+                glm::vec3 color = f(l)*(float)std::fmin(1.0f, glfwGetTime()/4.0);
+                fb.fb[y*800*3 + x*3] = color.r;
+                fb.fb[y*800*3 + x*3 + 1] = color.g;
+                fb.fb[y*800*3 + x*3 + 2] = color.b;
+            }
+        }
     //cudaGetLastError();
     //    float t = glfwGetTime();
     //#pragma omp parallel for
@@ -427,36 +435,36 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
 
     //        }
     //    }
-    memset(fb.fb, 255, fb.x*fb.y*3);
-    for( float y = 1.3 ; y >= -1.1 ; y -= 0.0075 ){
-        for( float x = -1.2 ; x <= 1.2 ; x += 0.00625 ) {
-            uint32_t xa = 208 + (x + 1.2)/0.00625;
-            uint32_t ya = 96 +  ((y+1.1) / 0.0075);
-            if( pow((x*x+y*y-1.0),3) - x*x*y*y*y <= 0.0 ) {
-                //                float amp  = 1.0;
-                //                float tadj = t-4;
-                //                if(t > 6.0) {
-                //                    amp = (cos(2*sqrt(((x/4)*(x/4)) + (y/4*(y/4))) + t-6.0) + 1.0)/2.0;
-                //                }
-                //                if(t > 8.9) {
-                //                    amp = 0;
-                //                }
-                //                if(((rand()) % 5  != 0) || (t < 6)) {
-                //                    fb.fb[ya*800*3 + xa*3] = 255 * amp;
-                //                    fb.fb[ya*800*3 + xa*3  + 1] = 0;
-                //                    fb.fb[ya*800*3 + xa*3  + 2] = 138 * amp;
-                //                } else if(t > 6) {
-                //                    fb.fb[ya*800*3 + xa*3] = 255 * amp;
-                //                    fb.fb[ya*800*3 + xa*3  + 1] = 255 * amp;
-                //                    fb.fb[ya*800*3 + xa*3  + 2] = 255 * amp;
-                //                }
-                float amp = ((fmin(fmax(t, 8.0),10.0)-8.0)/2.0);
-                fb.fb[ya*800*3 + xa*3] = 255 * amp;
-                fb.fb[ya*800*3 + xa*3 + 1] = 255 * amp;
-                fb.fb[ya*800*3 + xa*3 + 2] = 255 * amp;
-            }
-        }
-    }
+//    memset(fb.fb, 255, fb.x*fb.y*3);
+//    for( float y = 1.3 ; y >= -1.1 ; y -= 0.0075 ){
+//        for( float x = -1.2 ; x <= 1.2 ; x += 0.00625 ) {
+//            uint32_t xa = 208 + (x + 1.2)/0.00625;
+//            uint32_t ya = 96 +  ((y+1.1) / 0.0075);
+//            if( pow((x*x+y*y-1.0),3) - x*x*y*y*y <= 0.0 ) {
+//                //                float amp  = 1.0;
+//                //                float tadj = t-4;
+//                //                if(t > 6.0) {
+//                //                    amp = (cos(2*sqrt(((x/4)*(x/4)) + (y/4*(y/4))) + t-6.0) + 1.0)/2.0;
+//                //                }
+//                //                if(t > 8.9) {
+//                //                    amp = 0;
+//                //                }
+//                //                if(((rand()) % 5  != 0) || (t < 6)) {
+//                //                    fb.fb[ya*800*3 + xa*3] = 255 * amp;
+//                //                    fb.fb[ya*800*3 + xa*3  + 1] = 0;
+//                //                    fb.fb[ya*800*3 + xa*3  + 2] = 138 * amp;
+//                //                } else if(t > 6) {
+//                //                    fb.fb[ya*800*3 + xa*3] = 255 * amp;
+//                //                    fb.fb[ya*800*3 + xa*3  + 1] = 255 * amp;
+//                //                    fb.fb[ya*800*3 + xa*3  + 2] = 255 * amp;
+//                //                }
+//                float amp = ((fmin(fmax(t, 8.0),10.0)-8.0)/2.0);
+//                fb.fb[ya*800*3 + xa*3] = 255 * amp;
+//                fb.fb[ya*800*3 + xa*3 + 1] = 255 * amp;
+//                fb.fb[ya*800*3 + xa*3 + 2] = 255 * amp;
+//            }
+//        }
+//    }
     man->SetCameraConfig(cfg);
     return 0;
 }
