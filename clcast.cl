@@ -85,6 +85,7 @@ struct Scene {
     int sphereCount;
     int triCount;
     int lightCount;
+    int sr;
 };
 
 
@@ -184,6 +185,21 @@ float fresnel(float3 inc, float3 norm, float rdex) {
     return (r_s * r_s + r_p * r_p) / 2.0;
 }
 
+inline int fast_rand(uint g_seed) {
+    g_seed = (214013*g_seed+2531011);
+    return (g_seed>>16)&0x7FFF;
+}
+
+inline float3 randUnitVec(int *r) {
+    float3 vec;
+    vec.x = fast_rand(*r);
+    *r = vec.x;
+    vec.y = fast_rand(*r);
+    *r = vec.y;
+    vec.y = fast_rand(*r);
+    *r = vec.z;
+    return normalize(vec);
+}
 float4 trace(struct Ray *r, struct Scene* scene) {
     float4 color = {(100/255.0), (149/255.0), (237/255.0), 1.0};
     float spherelowt = 1024.0;
@@ -225,29 +241,34 @@ float4 trace(struct Ray *r, struct Scene* scene) {
         }
         float3 lightpos = scene->lights[i].pos;
         float3 l = normalize(lightpos - hp);
-        float dt = dot(l, lnormal);
+        float dt = dot(lnormal, l);
+        dt = clamp(dt, 0.0f, 1.0f);
         struct Ray s;
         s.origin = hp + lnormal*0.001f;
-        s.direction  = normalize(lightpos - hp);
+        int a = scene->sr;
+        s.direction  = normalize(lightpos - hp) + randUnitVec(&a)*0.01f;
         float t = 1024;
         float3 sn;
         struct Material c;
         cast(&s, scene, &sn, &t, &c);
         float3 shp = s.origin + t*s.direction;
         if((t > 1023) || distance(shp, s.origin) > distance(s.origin, lightpos)) {
-            float3 refd = normalize(-l - 2.0f*dot(-l, lnormal)*lnormal);
-            lightamt += (scene->lights[i].color*dt); 
-            speccolor += pow(max(0.0f, -dot(refd, r->direction)), mat.specexp) * scene->lights[i].color;
+            lightamt += (scene->lights[i].color*dt);
+            float3 halfAngle = normalize(l - r->direction);
+            float ahalf = acos(dot(halfAngle, lnormal));
+            float expn = ahalf / mat.specexp;
+            expn = -(expn*expn);
+            float blinn = exp(expn);
+            blinn = clamp(blinn, 0.0f, 1.0f);
+            if(dt == 0.0) {
+                 blinn = 0.0;
+            }
+            speccolor += blinn * scene->lights[i].color;
         }
     }
     float3 fc = lightamt * mat.color * mat.diffc + mat.specc * speccolor;
     float4 fcolor4 = {fc.x, fc.y, fc.z, 1.0};
     return fcolor4 * afactor;
-}
-
-inline int fast_rand(uint g_seed) {
-    g_seed = (214013*g_seed+2531011);
-    return (g_seed>>16)&0x7FFF;
 }
 
 __kernel void _main(__write_only image2d_t img, uint width, uint height, uint tricount, uint spherecount, uint lightcount, __constant struct Triangle *tris, __constant struct Sphere *spheres, __constant struct Light *lights, struct CameraConfig camera, uint sr) {
@@ -263,6 +284,7 @@ __kernel void _main(__write_only image2d_t img, uint width, uint height, uint tr
     //float y = (float)(get_global_id(0)) / (float)(height);
     float widthhalves = width/16;
     for(uint i = widthhalves*(get_global_id(1)); i < widthhalves*(get_global_id(1)+1); i++) {
+            scene.sr = sr + i + get_global_id(0);
             float y = get_global_id(0)/(float)height;
             float x = (float)(i) / (float)(width);
             float3 camright = cross(camera.up, camera.lookat) * ((float)width/height);
