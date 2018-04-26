@@ -64,18 +64,18 @@ struct Text {
     float x, y;
 };
 float lastphysrun = 0;
-std::fstream f("lemonade.mod", std::ios_base::in | std::ios_base::binary);
+std::fstream f("encyclopaedia-part2.mod", std::ios_base::in | std::ios_base::binary);
 ModulePlayer player(f);
 
 std::vector<Text> texts;
 
 void playmodule() {
-    //player.playModule();
+    player.playModule();
 }
 
 float vectorstringoffset(std::string s) {
     float size = s.size()/2.0;
-    return -(size*9.0 / 800)*100;
+    return -(size*9.0 / 1600)*100;
 }
 
 
@@ -113,6 +113,19 @@ uint8_t  sine_wave[256] = {
     0x4F, 0x52, 0x55, 0x58, 0x5B, 0x5E, 0x61, 0x64,
     0x67, 0x6A, 0x6D, 0x70, 0x74, 0x77, 0x7A, 0x7D
 };
+
+
+
+float cos2(float x) {
+    float pi2 = 3.1415926535897932*2;
+    return (sine_wave[(uint8_t)((fmod(x+ pi2/4.0, 2*pi2)/pi2)*255)]/127.5)-1.0;
+}
+
+float sin2(float x) {
+    float pi2 = 3.1415926535897932*2;
+    return (sine_wave[(uint8_t)((fmod(x, 2*pi2)/pi2)*255)]/127.5)-1.0;
+}
+
 
 int PrepFrameTest(Scene *man, Framebuffer &fb) {
     if(firstrun) {
@@ -187,111 +200,56 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         glPixelStorei(GL_PACK_ALIGNMENT, 8);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
         assert(bmpread("example.bmp", BMPREAD_ANY_SIZE, &bmp));
-        struct Text intro;
-        intro.text = "name presents \129";
-        intro.start = 0;
-        intro.end = 4;
-        intro.x = vectorstringoffset(intro.text) + 50;
-        intro.transform = glm::mat4x4(3.0f);
-        intro.y = 50;
-        struct Text love;
-        love.text = "why do you hurt me?";
-        love.start = 0;
-        love.end = 4;
-        love.x = vectorstringoffset(love.text) + 50;
-        love.transform = glm::mat4x4(2.5f);
-        love.y = 20;
-        struct Text love2;
-        love2.text = "i just want to love you.";
-        love2.start = 4;
-        love2.end = 8;
-        love2.x = vectorstringoffset(love.text) + 50;
-        love2.transform = glm::mat4x4(2.5f);
-        love2.y = 20;
-        struct Text hello;
-        hello.text = "who are you?";
-        hello.start = 10;
-        hello.end = 16;
-        hello.x = vectorstringoffset(hello.text) + 50;
-        hello.transform = glm::mat4x4(2.5f);
-        hello.y = 50;
-        hello.fade = true;
-        struct Text intro2;
-        intro2.text = "a new demo";
-        intro2.start = 4;
-        intro2.end = 8;
-        intro2.x = vectorstringoffset(intro2.text) + 50;
-        intro2.transform = glm::mat4x4(2.5f);
-        intro2.y = 50;
-        struct Text text;
-        text.text = "WIDE SPECTRUM ULTRAVIOLET";
-        text.start = 8;
-        text.end = 15;
-        text.x = vectorstringoffset(text.text) + 50;
-        text.transform = glm::mat4x4(2.0f);
-        text.y = 50;
-        struct Text text2;
-        text2.text = "we control the rotate";
-        text2.start = 22.5;
-        text2.end = 30;
-        text2.x = 80;
-        text2.y = 92;
-        struct Text t3;
-        t3.text = "sinusoid love, from C to you.";
-        t3.start = 0.0;
-        t3.end = 2321312312;
-        t3.x = vectorstringoffset(t3.text) + 50;
-        t3.y = 50;
-        struct Text sync;
-        sync.text = "synchronization l ost";
-        sync.start = 8;
-        sync.end = 10;
-        sync.x = vectorstringoffset(sync.text) + 50;
-        sync.y = 50;
-        sync.transform = glm::mat4x4(1.5f);
-        //        texts.push_back(sync);
-        struct Text sync2;
-        sync2.text = "synchronizationl ost";
-        sync2.start = 8;
-        sync2.end = 10;
-        sync2.x = vectorstringoffset(sync2.text) + 50;
-        sync2.y = 50;
-        sync2.transform = glm::mat4x4(1.5f);
-        texts.push_back(hello);
-        texts.push_back(hello);
-        texts.push_back(hello);
-        //        texts.push_back(sync2);
-        //texts.push_back(t3);
-        //                texts.push_back(text);
-        //        texts.push_back(text2);
-        //                texts.push_back(intro);
-        //                texts.push_back(intro2);
-        texts.push_back(love);
-        texts.push_back(love2);
-    }
-
-    //    if(glfwGetTime() > 8.0)
-    //        texts[0].x = vectorstringoffset(texts[0].text) + 50 + (int)80*sin(8*glfwGetTime()*glfwGetTime());
-    //    texts[0].y = 50 + rand() % 10;
-    //    if(glfwGetTime() > 8.0)
-    //        texts[1].x = vectorstringoffset(texts[1].text) + 50 + (int)80*sin(8*glfwGetTime()*glfwGetTime()+29);
-    //    texts[1].y = 50 + rand() % 5;
-    if(glfwGetTime() > 7.0) {
-        texts[4].x = vectorstringoffset(texts[0].text) + 50 + (int)80*sin(8*glfwGetTime()*glfwGetTime());
-        texts[4].y = 20.0 + (rand() % 5);
-    } else {
-        texts[3].y = 20.0 + ((2+.4)*sin(glfwGetTime()+1.5));
-        texts[4].y = 20.0 + ((2+.4)*sin(glfwGetTime()+1.5));
+        struct Text predestination;
+        predestination.start = 0;
+        predestination.end = 8;
+        predestination.text = "insert text here";
+        predestination.x = -vectorstringoffset(predestination.text)*2 + 1;
+        predestination.y = 96;
+        predestination.transform = glm::mat4x4(2.0f);
+        texts.push_back(predestination);
+        struct Text echo;
+        echo.start = 0;
+        echo.end = 8;
+        echo.text = "anyone out there";
+        echo.x = -vectorstringoffset(echo.text)*2 + 1;
+        echo.y = 4;
+        echo.transform = glm::mat4x4(2.0f);
+        texts.push_back(echo);
+        struct Text start;
+        start.start = 0;
+        start.end = 2;
+        start.text = "name presents";
+        start.x = vectorstringoffset(start.text) + 50;
+        start.y = 50;
+        start.transform = glm::mat4x4(2.0f);
+        texts.push_back(start);
+        struct Text name;
+        name.start = 2;
+        name.end = 5;
+        name.text = "something";
+        name.x = vectorstringoffset(name.text) + 50;
+        name.y = 50;
+        name.transform = glm::mat4x4(2.0f);
+        texts.push_back(name);
+        struct Text multimedia;
+        multimedia.start = 18;
+        multimedia.end = 28;
+        multimedia.text = "CPU is multimedia";
+        multimedia.x = vectorstringoffset(multimedia.text) + 50;
+        multimedia.y = 96;
+        multimedia.transform = glm::mat4x4(2.0f);
+        texts.push_back(multimedia);
+        struct Text creativity;
+        creativity.start = 18;
+        creativity.end = 28;
+        creativity.text = "CPU is creativity";
+        creativity.x = vectorstringoffset(creativity.text) + 50;
+        creativity.y = 4;
+        creativity.transform = glm::mat4x4(2.0f);
+        texts.push_back(creativity);
 
     }
-
-    texts[0].y = 50.0 + ((2+.4)*sin(glfwGetTime()+1.5));
-    texts[1].y = 50.0 + ((2+.18)*sin(glfwGetTime()+2.4));
-    texts[2].y = 50.0 + ((2)*sin(glfwGetTime()+4.3));
-    float voff = vectorstringoffset(texts[0].text);
-    texts[0].x = 50.0 + voff + (2*cos(1.5*glfwGetTime()+1.5));
-    texts[1].x = 50.0 + voff + (2*cos(1.5*glfwGetTime()+2.4));
-    texts[2].x = 50.0 + voff + (2*cos(1.5*glfwGetTime()+4.3));
     if(glfwWindowShouldClose(window))
         return -1;
     float tdiff = (glfwGetTime() - lasttime)*32;
@@ -299,19 +257,7 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     glm::mat4x4 mat;
     mat = glm::translate(mat, glm::vec3(sin(glfwGetTime()/2.0)*20, 0.0, cos(glfwGetTime()/2.0)*20));
     s->setTransform(mat);
-    //man.RegenerateObjectPositions();
     double xpos = fb.x/2, ypos = fb.y/2;
-    //    if((player.lastorder == 1) && !(player.lastrow % 8) && (lasttrow != player.lastrow)) {
-    //        Text fun;
-    //        fun.text = "WARNING: THIS DEMONSTRATION RUNS IN REALTIME";
-    //        fun.start = glfwGetTime();
-    //        fun.end = 7.98;
-    //        fun.x = vectorstringoffset("WARNING: THIS DEMONSTRATION RUNS IN REALTIME") + 50;
-    //        fun.y = dtextpos;
-    //        dtextpos -= 3;
-    //        texts.push_back(fun);
-    //        lasttrow = player.lastrow;
-    //    }
     if(mlocked) {
         glfwGetCursorPos(window, &xpos, &ypos);
         glfwSetCursorPos(window, fb.x/2, fb.y/2);
@@ -328,22 +274,6 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     cfg.lookat = glm::vec3(cos(vertical) * sin(horizontal), sin(vertical), cos(horizontal) * cos(vertical));
     glm::vec3 right = glm::vec3(sin(horizontal - 3.14f / 2.0f), 0, cos(horizontal - 3.14f / 2.0f));
     cfg.up = glm::cross(right, cfg.lookat);
-    glm::mat4x4 s3mat = s3->getTransform();
-    if((glfwGetTime()- 0.016) > lastphysrun) {
-        s3velocity -= (-40/60.0)/2.0;
-        s3y += s3velocity;
-        //if(s3y < 0.0)
-        //s3velocity = 0.20;
-        if(!(player.lastrow % 8))
-            s3y = 5.0;
-        lastphysrun = glfwGetTime();
-    }
-    s3mat[3][1] = s3y;
-    s3->setTransform(s3mat);
-    //cfg.up = glm::vec3(0.0, 1.0, 0.0);
-    //cfg.center = glm::vec3(sin(glfwGetTime()/2.0)*80, 12.0, cos(glfwGetTime()/2.0)*80);
-    //cfg.lookat = glm::normalize(glm::vec3(s3mat[3][0], 0.0, s3mat[3][2]) - cfg.center);
-    //cfg.lookat = glm::normalize(glm::vec3(mat[3][0], 0.0, mat[3][2]) - cfg.center);
     if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         cfg.center += cfg.lookat*tdiff;
     }
@@ -364,107 +294,59 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         man->SwitchBackend(currentbackend);
     }
     float t = glfwGetTime();
-    glm::mat3x3 m;
-    m[0][0] = cos(t/3);
-    m[1][0] = -sin(t/3);
-    m[0][1] = sin(t/3);
-    m[1][1] = cos(t/3);
-    glm::mat3x3 m2;
-    m2[0][0] = cos((t+0.5)/2);
-    m2[1][0] = -sin((t+0.5)/2);
-    m2[0][1] = sin((t+0.5)/2);
-    m2[1][1] = cos((t+0.5)/2);
-    auto f = [](glm::vec3 loc) {
-        if(loc.x < 0) {
-            loc.x = (-loc.x) + 50;
-        }
-        if(loc.y < 0) {
-            loc.y = (-loc.y) + 50;
-        }
-        //int x = (int)(loc.x/50) + (int)(loc.y/50);
-        uint16_t xloc  = ((int)loc.x % 153);
-        uint16_t yloc  = ((int)loc.y % 153);
+    if(t < 5 && t > 2) {
+        std::string s[] = { "something" , "a horrible demo", "inspired by sunflower", " a disaster piece" };
+        texts[3].text = s[(int)(rand()) % 4];
+        texts[3].x = vectorstringoffset(texts[3].text) + 50;
+    }
+    if(t > 17.9) {
+        float hi = (exp(t-19.0f)- 1.0);
+        texts[4].x = vectorstringoffset(texts[4].text) + 57 * std::min(hi, 1.0f) - 7;
+        texts[5].x = vectorstringoffset(texts[4].text) + 57 * std::min(hi, 1.0f) - 7;
 
-        glm::vec3 color(bmp.data[yloc*153*3 + xloc*3 + 0], bmp.data[yloc*153*3 + xloc*3 + 1], bmp.data[yloc*153*3 + xloc*3 + 2]);
-        return color;
-//        if(x % 2) {
-//            return glm::vec3(83, 212, 230);
-//        }
-//        return glm::vec3(255, 192, 203);
-    };
-    glm::vec3 c(0, 0, 0);
-    c.x += cos(t)*200;
-    c.y += sin(t)*200;
-    c.x *= sin(t)+1;
-    c.y *= sin(t)+1;
-    c = m * c;
-        for(size_t x = 0; x < 800; x++) {
-            for(size_t y = 0; y < 450; y++) {
-                glm::vec3 l((int)x - 400, (int)y - 225 , 0);
-                if(y % 2 == 0 && (t > 8.0)) {
-                    l.x += cos(t)*200;
-                    l.y += sin(t)*200;
-                    l.x *= sin(t)+1;
-                    l.y *= sin(t)+1;
-                    //l = m * l;
-                } else {
-                    l.x += cos(t+0.5)*200;
-                    l.y += sin(t+0.5)*200;
-                    l.x *= sin(t+0.5)+1;
-                    l.y *= sin(t+0.5)+1;
-                    //l = m2 * l;
-                }
-                float xdif = l.x-c.x;
-                float ydif = l.y-c.y;
-                float m = std::fmin(1.0f,(1.0f/(sqrtf(xdif*xdif + ydif*ydif)/256.0f)));
-                glm::vec3 color = f(l)*(float)std::fmin(1.0f, glfwGetTime()/4.0);
-                fb.fb[y*800*3 + x*3] = color.r;
-                fb.fb[y*800*3 + x*3 + 1] = color.g;
-                fb.fb[y*800*3 + x*3 + 2] = color.b;
+    }
+    glm::mat4x4 transform;
+    transform[0][0] = cos(t/8.0f);
+    transform[0][1] = sin(t/8.0f);
+    transform[1][0] = -sin(t/8.0f);
+    transform[1][1] = cos(t/8.0f);
+    glm::vec2 center;
+    center.x = sin(t)*800 + 800 + sin((t/16.0))*200;
+    center.y = cos(t)*450 + 450 + cos(t/16.0 + 1.90)*200;
+    float factor = 1/std::max(1.0f, (t-11.0f));
+    float factor2 = std::min(1.0f, ((t-16.0f)/2.0f)*((t-16.0f)/3.0f)) * ((cos(std::max(1.0f, t-17.0f))+1.0f)/2.0f + 0.5f) * exp((t-18.0f)/3.5f);
+    float atten = std::max(1.0f, (t-12.0f));
+    if(t < 16.0) {
+        for(size_t x = 0; x < fb.x; x++) {
+            for(size_t y = 0; y < fb.y; y++) {
+                float xdist =center.x - (x*factor);
+                xdist *= xdist;
+                float ydist =center.y - (y*factor);
+                ydist *= ydist;
+                float dist = sqrtf(xdist + ydist)/65536.0f;
+                fb.fb[(y*1600*3) + x*3] = std::min((1.0/(dist)) * (cos(t/2.0f + 2) +1.0f)/2.0f, 255.0);
+                fb.fb[(y*1600*3) + x*3 + 1] = std::min((1.0/(dist))* (cos(t/2.0f + 9) +1.0f)/2.0f, 255.0);
+                fb.fb[(y*1600*3) + x*3 + 2] = std::min((1.0/(dist))* (cos(t/2.0f + 5) +1.0f)/2.0f, 255.0);
             }
         }
-    //cudaGetLastError();
-    //    float t = glfwGetTime();
-    //#pragma omp parallel for
-    //    for(size_t x = 0; x < 1600; x++) {
-    //        for(size_t y = 0; y < 900; y++) {
-    //            uint8_t amp = (sine_wave[(x/4 + (int)(t*200)) & 0xff] + sine_wave[(y/4 + (int)(glfwGetTime()*50)) & 0xff] + (int)(glfwGetTime()*10)) + sine_wave[(x/4+y/4) & 0xff] + sine_wave[(int)(x/4+134*(t))&0xff];
-    //            fb.fb[y*1600*3 + x*3] = ((uint16_t)amp * 16) >> 8;
-    //            fb.fb[y*1600*3 + x*3 + 1] = ((uint16_t)amp * 32) >> 8;
-    //            fb.fb[y*1600*3 + x*3 + 2] = ((uint16_t)amp * 64) >> 8;
-
-    //        }
-    //    }
-//    memset(fb.fb, 255, fb.x*fb.y*3);
-//    for( float y = 1.3 ; y >= -1.1 ; y -= 0.0075 ){
-//        for( float x = -1.2 ; x <= 1.2 ; x += 0.00625 ) {
-//            uint32_t xa = 208 + (x + 1.2)/0.00625;
-//            uint32_t ya = 96 +  ((y+1.1) / 0.0075);
-//            if( pow((x*x+y*y-1.0),3) - x*x*y*y*y <= 0.0 ) {
-//                //                float amp  = 1.0;
-//                //                float tadj = t-4;
-//                //                if(t > 6.0) {
-//                //                    amp = (cos(2*sqrt(((x/4)*(x/4)) + (y/4*(y/4))) + t-6.0) + 1.0)/2.0;
-//                //                }
-//                //                if(t > 8.9) {
-//                //                    amp = 0;
-//                //                }
-//                //                if(((rand()) % 5  != 0) || (t < 6)) {
-//                //                    fb.fb[ya*800*3 + xa*3] = 255 * amp;
-//                //                    fb.fb[ya*800*3 + xa*3  + 1] = 0;
-//                //                    fb.fb[ya*800*3 + xa*3  + 2] = 138 * amp;
-//                //                } else if(t > 6) {
-//                //                    fb.fb[ya*800*3 + xa*3] = 255 * amp;
-//                //                    fb.fb[ya*800*3 + xa*3  + 1] = 255 * amp;
-//                //                    fb.fb[ya*800*3 + xa*3  + 2] = 255 * amp;
-//                //                }
-//                float amp = ((fmin(fmax(t, 8.0),10.0)-8.0)/2.0);
-//                fb.fb[ya*800*3 + xa*3] = 255 * amp;
-//                fb.fb[ya*800*3 + xa*3 + 1] = 255 * amp;
-//                fb.fb[ya*800*3 + xa*3 + 2] = 255 * amp;
-//            }
-//        }
-//    }
+    } else if(t < 32.0) {
+#pragma omp parallel for
+        for(size_t x = 0; x < fb.x; x++) {
+            for(size_t y = 0; y < fb.y; y++) {
+                float xadj = (((int)x - 800)/64.0)*(factor2) + 20*sin(t/128.0f);
+                float yadj = (((int)y - 450)/64.0)*(factor2) + 10*cos(t/128.0f);
+                glm::vec4 rotated(xadj, yadj, 0, 1);
+                rotated = transform * rotated;
+                xadj = rotated.x;
+                yadj = rotated.y;
+                const float amp = sin2(sin2(xadj+ t*0.5) + sin2(yadj+t*.075) + t*1.5 + cos2(xadj+yadj+t*1.4))+1.0;
+                fb.fb[(y*1600*3) + x*3] = amp * 16;
+                fb.fb[(y*1600*3) + x*3 + 1] = amp * 8;
+                fb.fb[(y*1600*3) + x*3 + 2] = amp * 64;
+            }
+        }
+    } else if(t < 30) {
+    }
     man->SetCameraConfig(cfg);
     return 0;
 }
@@ -517,7 +399,7 @@ void DrawFrameTest(Scene *t, Framebuffer &fb) {
     for(size_t i = 0; i < texts.size(); i++) {
         if((time >texts[i].start) && (time < texts[i].end)) {
             GLuint tex;
-            uint8_t *r = drawText(texts[i].text, glm::vec4(0.0, 0.0, 0.0, 1));
+            uint8_t *r = drawText(texts[i].text, glm::vec4(0.9, 0.9, 0.9, 0.8));
             glGenTextures(1, &tex);
             glBindTexture(GL_TEXTURE_2D, tex);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -536,8 +418,8 @@ void DrawFrameTest(Scene *t, Framebuffer &fb) {
             v3 = (texts[i].transform * (v3 - vorigin)) + vorigin ;
             v4 = (texts[i].transform * (v4 - vorigin)) + vorigin ;
             for(int a = 0; a < 1; a++) {
-                float yoff = ((rand() % 255) - 127.5)/510.0;
-                float xoff = ((rand() % 255) - 127.5)/510.0;
+                float yoff = 0;
+                float xoff = 0;
                 glTexCoord2f(0, 0); glVertex3f(v1.x + xoff, v1.y + yoff, 0);
                 glTexCoord2f(0, 1); glVertex3f(v2.x + xoff, v2.y + yoff, 0);
                 glTexCoord2f(1, 1); glVertex3f(v3.x + xoff, v3.y + yoff, 0);
@@ -569,13 +451,13 @@ int main(int argc, char **argv) {
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
     glfwInit();
-    window = glfwCreateWindow(800, 450, "t", NULL, NULL);
+    window = glfwCreateWindow(1600, 900, "t", NULL, NULL);
     glfwMakeContextCurrent(window);
     glewInit();
     Scene man(currentbackend, 4, PrepFrameTest ,DrawFrameTest);
     Framebuffer fb;
-    fb.x = 800;
-    fb.y = 450;
+    fb.x = 1600;
+    fb.y = 900;
     fb.fb = (uint8_t*)malloc(fb.x*fb.y*3);
 
     //cudaDeviceSynchronize();

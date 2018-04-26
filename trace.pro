@@ -4,7 +4,7 @@ CONFIG -= app_bundle
 CONFIG -= qt
 
 LIBS += -lGLEW -lglfw -lGL -lgomp -lGLU -lpthread -lembree3 -lglut -lOpenCL -lportaudio -lbmpread
-QMAKE_CXXFLAGS = -fopenmp -std=gnu++14 -ffast-math -Os -pthread
+QMAKE_CXXFLAGS = -fopenmp -std=gnu++14 -ffast-math -O3 -pthread -ffast-math
 
 HEADERS += \
     ctpl.h \
