@@ -455,6 +455,7 @@ void Scene::render(Framebuffer &fb) {
     size_t ystep = fb.y/8;
     prepframe(this, fb);
     RegenerateObjectCache();
+    fast_srand(22);
     while(true) {
         if(backend == OpenCL) {
             glEnable(GL_TEXTURE_2D);
@@ -467,9 +468,9 @@ void Scene::render(Framebuffer &fb) {
             stateok();
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             stateok();
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             stateok();
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             stateok();
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, fb.x, fb.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
             stateok();

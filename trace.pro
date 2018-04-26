@@ -16,8 +16,10 @@ HEADERS += \
     sphere.h \
     scene.h \
     player.h \
-    libfont.h
-SOURCES += main.cpp \
+    libfont.h \
+    qdbmp.h
+SOURCES += qdbmp.c \
+    main.cpp \
     triangle.cpp \
     sphere.cpp \
     scene.cpp \

@@ -30,7 +30,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <player.h>
 #include "libfont.h"
-
+extern "C" {
+    #include "qdbmp.h"
+}
 GLFWwindow *window;
 
 bool firstrun = true;
@@ -51,6 +53,7 @@ float s3velocity = 0.0;
 float s3y = 3.0;
 float dtextpos = 96;
 int lasttrow = -1;
+bool photo = false;
 struct Text {
     Text() : transform(1.0f){
     }
@@ -66,6 +69,7 @@ std::fstream f("lemonade.mod", std::ios_base::in | std::ios_base::binary);
 ModulePlayer player(f);
 
 std::vector<Text> texts;
+std::vector<Sphere*> funspheres;
 
 void playmodule() {
     //player.playModule();
@@ -123,8 +127,20 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         s = new Sphere(glm::vec3(0.0, 0.0, 0.0), 2, b);
         Sphere *s2 = new Sphere(glm::vec3(10.0, 0.0, 0.0), 2, g);
         s3 = new Sphere(glm::vec3(10.0, 3.0, 10.0), 4, r);
-        Light *l = new Light(glm::vec3(-10.0, 8.0, -10.0), glm::vec3(1.0, 0.0, 1.0), glm::vec2(1.0, 0.20));
-        Light *l2 = new Light(glm::vec3(10, 30, 10), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1.0, 0.20));
+        Light *l = new Light(glm::vec3(-10.0, 8.0, -10.0), glm::vec3(0.0, 0.0, 1.0), glm::vec2(1.0, 0.20));
+        Light *l2 = new Light(glm::vec3(10, 20, 10), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1.0, 0.20));
+        for(int i = 0; i < 10; i++) {
+            Material gdif;
+            gdif.type = DIFFUSE_GLOSS;
+            gdif.diffc = 0.9;
+            gdif.specc = 0.1;
+            gdif.specexp = 0.1;
+            gdif.color = glm::vec3(0.0, 1.0, 0.0);
+
+            Sphere *gs = new Sphere(glm::vec3(0, 5, 25), 2, gdif);
+            funspheres.push_back(gs);
+            man->AddObject(gs);
+        }
         man->AddObject(s);
         man->AddObject(s2);
         man->AddObject(s3);
@@ -149,6 +165,14 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         glfwSetInputMode(window, GLFW_CURSOR,GLFW_CURSOR_HIDDEN);
         glPixelStorei(GL_PACK_ALIGNMENT, 8);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
+    }
+    float time = glfwGetTime();
+    for(int i = 0; i < 10; i++) {
+        glm::mat4x4 a = funspheres[i]->getTransform();
+        a[3][1] = 5 + 5*sin(time + i*0.2 );
+        a[3][0] = 20*sin(-1.6 + time + 0.2*i);
+        a[3][2] = 25*sin( 0.5 + time + i*0.4);
+        funspheres[i]->setTransform(a);
     }
     if(glfwWindowShouldClose(window))
         return -1;
@@ -189,6 +213,9 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         return -1;
     }
+    if(glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
+        photo = true;
+    }
     man->SetCameraConfig(cfg);
     return 0;
 }
@@ -215,6 +242,28 @@ void DrawFrameTest(Scene *t, Framebuffer &fb) {
         glTexCoord2f(1, 1); glVertex3f(100, 100, 0);
         glTexCoord2f(1, 0); glVertex3f(100, 0, 0);
         glEnd();
+    }
+    if(photo) {
+        glPixelStorei(GL_PACK_ALIGNMENT, 1);
+        BMP *bmp;
+        photo = false;
+        GLubyte* pixels = (GLubyte*) malloc(fb.x * fb.y * 4 * sizeof(GLubyte));
+        glReadPixels(0, 0, fb.x, fb.y, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        char *out_fn = "screenie.bmp";
+        GLubyte *p = pixels;
+        bmp = BMP_Create(fb.x, fb.y, 24);
+        if(!bmp) {
+            return;
+        }
+        for(uint64_t x = 0; x < fb.x; x++){
+            for(uint64_t y = 0; y < fb.y; y++) {
+                BMP_SetPixelRGB(bmp, x, y, p[((y * fb.x)*4) + (x * 4)],
+                                           p[((y * fb.x)*4) + (x * 4) + 1],
+                                           p[((y * fb.x)*4) + (x * 4) + 2]);
+            }
+        }
+        printf("Writing BMP to %s\n", out_fn);
+        BMP_WriteFile(bmp, out_fn);
     }
     float time = glfwGetTime();
     glDeleteTextures(1, &fb.textureid);
@@ -280,13 +329,13 @@ int main(int argc, char **argv) {
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
     glfwInit();
-    window = glfwCreateWindow(1600, 900, "t", NULL, NULL);
+    window = glfwCreateWindow(1680, 1050, "t", NULL, NULL);
     glfwMakeContextCurrent(window);
     glewInit();
     Scene man(currentbackend, 4, PrepFrameTest ,DrawFrameTest);
     Framebuffer fb;
-    fb.x = 1600;
-    fb.y = 900;
+    fb.x = 1680;
+    fb.y = 1050;
     fb.fb = (uint8_t*)malloc(fb.x*fb.y*3);
 
     //cudaDeviceSynchronize();
