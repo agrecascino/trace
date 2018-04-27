@@ -339,13 +339,16 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
                 rotated = transform * rotated;
                 xadj = rotated.x;
                 yadj = rotated.y;
-                const float amp = sin2(sin2(xadj+ t*0.5) + sin2(yadj+t*.075) + t*1.5 + cos2(xadj+yadj+t*1.4))+1.0;
+                const float amp = sin2(-0.8 + sin2(xadj+ t*0.5) + sin2(yadj+t*.075) + t*1.5 + cos2(xadj+yadj+t*1.4))+1.0;
                 fb.fb[(y*1600*3) + x*3] = amp * 16;
                 fb.fb[(y*1600*3) + x*3 + 1] = amp * 8;
                 fb.fb[(y*1600*3) + x*3 + 2] = amp * 64;
             }
         }
     } else if(t < 30) {
+        glm::mat4x4 view = glm::lookAt(glm::vec3(-1, 0, 0), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
+        glm::mat4x4 projection = glm::project(45.0f, 16/9.0f, 0.01f, 10.0f);
+
     }
     man->SetCameraConfig(cfg);
     return 0;
