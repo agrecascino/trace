@@ -38,11 +38,16 @@ GLFWwindow *window;
 bool firstrun = true;
 Sphere *s;
 Sphere *s3;
+Triangle *triE;
+Triangle *triE2;
+Triangle *triE3;
+Triangle *triE4;
 int frame = 0;
 int prevframe = frame;
 float horizontal = 3.14f;
 float vertical = 0.0f;
 float mspeed = 0.005f;
+float rotangle = 0.0f;
 int lastfps;
 bool mlocked = true;
 timeval past, present;
@@ -87,7 +92,7 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         t.detach();
         lasttime = glfwGetTime();
         firstrun = false;
-        cfg.center = glm::vec3(12.0, 4.0, 12.0);
+        cfg.center = glm::vec3(12.0, 4.0, -36.0);
         printVec3(cfg.center);
         cfg.lookat  = glm::normalize(glm::vec3(0.0, 0.0, 0.0) - cfg.center);
         printVec3(cfg.lookat);
@@ -97,10 +102,14 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         Material reflect;
         reflect.type = REFLECT;
         reflect.color = glm::vec3(0.0, 0.7, 0.0);
+        reflect.diffc = 1.0;
+        reflect.specexp = 0;
+        reflect.specc = 0;
+        reflect.rindex = 1.0;
         Material white_unreflective;
         white_unreflective.color = glm::vec3(1.0, 1.0, 1.0);
         white_unreflective.diffc = 1.0;
-        white_unreflective.specexp = 0;
+        white_unreflective.specexp = 0.0;
         white_unreflective.specc = 0;
         white_unreflective.rindex = 1.0;
         glm::vec3 tris[3] = {glm::vec3(40.0, -3.0, -40.0), glm::vec3(-40.0, -3.0, 40.0), glm::vec3(-40.0, -3.0, -40.0)};
@@ -124,23 +133,68 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         g.diffc = 0.3;
         g.specc = 0.7;
         g.specexp = 0.1;
+        g.emits = 0.0;
+        Material emissive;
+        emissive.color = glm::vec3(0.456, 0.456, 1.0);
+        emissive.type = DIFFUSE_GLOSS;
+        emissive.alightid = 1;
+        emissive.specexp = 0.0;
+        emissive.diffc = 1.0;
+        emissive.specc = 0.0;
+        emissive.emits = 1.0;
+        emissive.rindex = 1.0;
+        Material greenemits;
+        greenemits.color = glm::vec3(0, 0.5,0.33);
+        greenemits.type = DIFFUSE_GLOSS;
+        greenemits.alightid = 1;
+        greenemits.specexp = 0.0;
+        greenemits.diffc = 1.0;
+        greenemits.specc = 0.0;
+        greenemits.emits = 1.0;
+        greenemits.rindex = 1.0;
+        glm::mat4x4 m;
+        glm::vec3 etris[3] = {glm::vec3(1.5, 1.5, -2.0), glm::vec3(1.5, 1.5, -5.0), glm::vec3(3, 4.5, -2.0)};
+        glm::vec3 etris2[3] = {glm::vec3(1.5, 1.5, -5.0), glm::vec3(3, 4.5, -5.0), glm::vec3(3, 4.5, -2.0)};
+        glm::vec3 etrisx[3] = {glm::vec3(8, -3.5, 2.0), glm::vec3(8, -3.5, 5.0), glm::vec3(8, -7.5, 2.0)};
+        glm::vec3 etrisx2[3] = {glm::vec3(8, -3.5, 5.0), glm::vec3(8, -7.5, 5.0), glm::vec3(8, -7.5, 2.0)};
+        triE = new Triangle(etris, emissive);
+        triE2 = new Triangle(etris2, emissive);
+        glm::vec3 etris3[3] = {glm::vec3(etrisx[0].y, etrisx[0].x, etrisx[0].z), glm::vec3(etrisx[1].y, etrisx[1].x, etrisx[1].z), glm::vec3(etrisx[2].y, etrisx[2].x, etrisx[2].z)};
+        glm::vec3 etris4[3] = {glm::vec3(etrisx2[0].y, etrisx2[0].x, etrisx2[0].z), glm::vec3(etrisx2[1].y, etrisx2[1].x, etrisx2[1].z), glm::vec3(etrisx2[2].y, etrisx2[2].x, etrisx2[2].z)};
+        triE3 = new Triangle(etris3, greenemits);
+        triE4 = new Triangle(etris4, greenemits);
         s = new Sphere(glm::vec3(0.0, 0.0, 0.0), 2, b);
         Sphere *s2 = new Sphere(glm::vec3(10.0, 0.0, 0.0), 2, g);
         s3 = new Sphere(glm::vec3(10.0, 3.0, 10.0), 4, r);
         Light *l = new Light(glm::vec3(-10.0, 8.0, -10.0), glm::vec3(0.0, 0.0, 1.0), glm::vec2(1.0, 0.20));
         Light *l2 = new Light(glm::vec3(10, 20, 10), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1.0, 0.20));
-        for(int i = 0; i < 10; i++) {
-            Material gdif;
-            gdif.type = DIFFUSE_GLOSS;
-            gdif.diffc = 0.9;
-            gdif.specc = 0.1;
-            gdif.specexp = 0.1;
-            gdif.color = glm::vec3(0.0, 1.0, 0.0);
+//        for(int i = 0; i < 10; i++) {
+//            Material gdif;
+//            gdif.type = DIFFUSE_GLOSS;
+//            gdif.diffc = 0.9;
+//            gdif.specc = 0.1;
+//            gdif.specexp = 0.1;
+//            gdif.color = glm::vec3(0.0, 1.0, 0.0);
 
-            Sphere *gs = new Sphere(glm::vec3(0, 5, 25), 2, gdif);
-            funspheres.push_back(gs);
-            man->AddObject(gs);
-        }
+//            Sphere *gs = new Sphere(glm::vec3(0, 5, 25), 2, gdif);
+//            funspheres.push_back(gs);
+//            man->AddObject(gs);
+//        }
+//        for(int i = 0; i < 10; i++) {
+//            Material gdif;
+//            gdif.type = DIFFUSE_GLOSS;
+//            gdif.diffc = 0.9;
+//            gdif.specc = 0.1;
+//            gdif.specexp = 0.1;
+//            gdif.color = glm::vec3(0.0, 1.0, 0.0);
+//            auto floatrand = [&]() {
+//                return (man->fast_rand()/16384.0)-1.0;
+//            };
+
+//            glm::vec3 trisRg[3] = {glm::vec3(floatrand()*100.0, floatrand()*100.0, floatrand()*100.0), glm::vec3(floatrand()*100.0, floatrand()*100.0, floatrand()*100.0), glm::vec3(floatrand()*100.0, floatrand()*100.0, floatrand()*100.0)};
+//            Triangle *triRg = new Triangle(trisRg, gdif);
+//            man->AddObject(triRg);
+//        }
         man->AddObject(s);
         man->AddObject(s2);
         man->AddObject(s3);
@@ -148,12 +202,16 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         man->AddObject(tri2);
         man->AddObject(triR1);
         man->AddObject(triR2);
+        man->AddObject(triE);
+        man->AddObject(triE2);
+        man->AddObject(triE3);
+        man->AddObject(triE4);
         //        for(int i = 0; i < 20; i++) {
         //            man->AddObject(triR1);
         //            man->AddObject(triR2);
         //        }
-        man->AddLight(l);
-        man->AddLight(l2);
+        //man->AddLight(l);
+        //man->AddLight(l2);
         srand(0);
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
@@ -167,13 +225,13 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
     }
     float time = glfwGetTime();
-    for(int i = 0; i < 10; i++) {
-        glm::mat4x4 a = funspheres[i]->getTransform();
-        a[3][1] = 5 + 5*sin(time + i*0.2 );
-        a[3][0] = 20*sin(-1.6 + time + 0.2*i);
-        a[3][2] = 25*sin( 0.5 + time + i*0.4);
-        funspheres[i]->setTransform(a);
-    }
+//    for(int i = 0; i < 10; i++) {
+//        glm::mat4x4 a = funspheres[i]->getTransform();
+//        a[3][1] = 5 + 5*sin(time + i*0.2 );
+//        a[3][0] = 20*sin(-1.6 + time + 0.2*i);
+//        a[3][2] = 25*sin( 0.5 + time + i*0.4);
+//        funspheres[i]->setTransform(a);
+//    }
     if(glfwWindowShouldClose(window))
         return -1;
     float tdiff = (glfwGetTime() - lasttime)*32;
@@ -196,7 +254,7 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         vertical = -1.5f;
     }
     cfg.lookat = glm::vec3(cos(vertical) * sin(horizontal), sin(vertical), cos(horizontal) * cos(vertical));
-    glm::vec3 right = glm::vec3(sin(horizontal - 3.14f / 2.0f), 0, cos(horizontal - 3.14f / 2.0f));
+    glm::vec3 right = glm::vec3(sin(horizontal - 3.14f / 2.0f) * cos(rotangle), sin(rotangle), cos(horizontal - 3.14f / 2.0f) * cos(rotangle));
     cfg.up = glm::cross(right, cfg.lookat);
     if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         cfg.center += cfg.lookat*tdiff;
@@ -209,6 +267,12 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     }
     if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
         cfg.center -= right*tdiff;
+    }
+    if(glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
+        rotangle -= (1/90.0f) * (3.14/2.0f) * tdiff;
+    }
+    if(glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
+        rotangle += (1/90.0f) * (3.14/2.0f) * tdiff;
     }
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         return -1;
@@ -329,13 +393,13 @@ int main(int argc, char **argv) {
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
     glfwInit();
-    window = glfwCreateWindow(1680, 1050, "t", NULL, NULL);
+    window = glfwCreateWindow(1280, 960, "t", NULL, NULL);
     glfwMakeContextCurrent(window);
     glewInit();
     Scene man(currentbackend, 4, PrepFrameTest ,DrawFrameTest);
     Framebuffer fb;
-    fb.x = 1680;
-    fb.y = 1050;
+    fb.x = 1280*2;
+    fb.y = 960*2;
     fb.fb = (uint8_t*)malloc(fb.x*fb.y*3);
 
     //cudaDeviceSynchronize();

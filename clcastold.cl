@@ -1,12 +1,12 @@
 enum MatType {
-    DIFFUSE_GLOSS = 0,
-    REFLECT_REFRACT = 1,
-    REFLECT = 2
+    DIFFUSE_GLOSS,
+    REFLECT_REFRACT,
+    REFLECT
 };
 
 enum AreaLightType {
-    TRIANGLELIST = 0,
-    SPHERELIST = 1
+    TRIANGLELIST,
+    SPHERELIST
 };
 
 struct Material {
@@ -20,9 +20,9 @@ struct Material {
 };
 
 struct AreaLight {
+    enum AreaLightType type;
     uint emitliststart;
     uint emitters;
-    enum AreaLightType type;
 };
 
 struct CameraConfig {
@@ -95,12 +95,9 @@ struct Scene {
     __constant struct Sphere *spheres;
     __constant struct Triangle *triangles;
     __constant struct Light *lights;
-    __constant struct AreaLight *alights;
-    __constant uint *emittersets;
     int sphereCount;
     int triCount;
     int lightCount;
-    int alightCount;
     int sr;
 };
 
@@ -202,7 +199,7 @@ struct AABB genTriangleBounds(__constant struct Triangle *triangle) {
 }
 
 
-void cast(struct Ray* r, struct Scene* scene, float3 *normal, float *spherelowt, struct Material *mat, int *tp, int *sp) {
+void cast(struct Ray* r, struct Scene* scene, float3 *normal, float *spherelowt, struct Material *mat) {
     float t = 1024.0;
     float3 fcolor= { 0,0,0};
     float3 tnormal;
@@ -212,8 +209,6 @@ void cast(struct Ray* r, struct Scene* scene, float3 *normal, float *spherelowt,
                 *spherelowt = t;
                 *normal = tnormal;
                 *mat = scene->spheres[i].mat;
-                *sp = i;
-                *tp = -1;
             }
         }
     }
@@ -223,8 +218,6 @@ void cast(struct Ray* r, struct Scene* scene, float3 *normal, float *spherelowt,
                 *spherelowt = t;
                 *normal = tnormal;
                 *mat = scene->triangles[i].mat;
-                *sp = -1;
-                *tp = i;
             }
         }
     }
@@ -264,26 +257,18 @@ inline float3 randUnitVec(ulong *r) {
     vec.z = fast_rand(r);
     return normalize(vec);
 }
-
-uint reduce(uint x, uint N) {
-  return ((ulong) x * (ulong) N) >> 32 ;
-}
-
 float4 trace(struct Ray *r, struct Scene* scene) {
-    float4 color = {(0.12752977781), (0.3066347662), 0.845164518, 1.0};
+    float4 color = {(100/255.0), (149/255.0), (237/255.0), 1.0};
     float spherelowt = 1024.0;
     float3 fcolor= { 0,0,0};
     float3 lnormal;
     float3 tnormal;
     float afactor = 1.0;
     struct Material mat;
-    int trash;
-    int trash2;
-    cast(r, scene, &lnormal, &spherelowt, &mat, &trash2, &trash);
+    cast(r, scene, &lnormal, &spherelowt, &mat);
     float3 hp = r->origin + spherelowt*r->direction;
     if(spherelowt > 1023)
         return color * afactor;
-    //return (scene->sphereCount, scene->sphereCount, scene->sphereCount, scene->sphereCount);
     if (mat.type == REFLECT) {
         int depth = 0;
 	    while((mat.type == REFLECT) && depth < 3) { //set depth to 0 at the first ray           
@@ -298,8 +283,7 @@ float4 trace(struct Ray *r, struct Scene* scene) {
 		    r->direction = refd;
             r->inv_dir = 1.0f/refd;
 		    spherelowt = 1024;  
-            ulong ptr;
-		    cast(r, scene, &lnormal, &spherelowt, &mat, &trash2, &trash);
+		    cast(r, scene, &lnormal, &spherelowt, &mat);
 		    if(spherelowt > 1023)
 		        break;
 		    hp = r->origin + spherelowt*r->direction;
@@ -310,73 +294,6 @@ float4 trace(struct Ray *r, struct Scene* scene) {
     float3 lightamt = {0, 0, 0};
     float3 speccolor = {0, 0, 0};
     lightamt += mat.emits * mat.color;
-    float x, y, z;
-    x = r->direction.x;
-    y = r->direction.y;
-    z = r->direction.z;
-    ulong a = scene->sr + 1227*(get_global_id(0))+1;
-    for(int i = 0; i < scene->alightCount; i++) {
-        if(dot(lnormal, -r->direction) < 0) {
-            lnormal = -lnormal;
-        }
-        float3 specsample = {0, 0, 0};
-        float3 diffsample = {0, 0, 0};
-        for(uint sample = 0; sample < 4; sample++) {
-            uint red = reduce(fast_rand(&a), scene->alights[i].emitters);
-            if(scene->alights[i].type == TRIANGLELIST) {
-                uint chooser = scene->alights[i].emitliststart + red;
-                uint id = scene->emittersets[chooser];
-                __constant struct Triangle *tri = &scene->triangles[id];
-                float3 e0 = tri->pts[1] - tri->pts[0];
-                float3 e1 = tri->pts[2] - tri->pts[0];
-                float3 n = normalize(cross(e0, e1));
-                float rb = (fast_rand(&a) & 0xFFFF)/65535.0f;
-                float sb = (fast_rand(&a) & 0xFFFF)/65535.0f;
-                if((rb+sb) >= 1.0) {
-                    rb = 1 - rb;
-                    sb = 1 - sb;
-                }
-                float3 pt = tri->pts[0] + rb*e0 + sb*e1;
-                struct Ray s;
-                s.origin = pt + n*0.001f;
-                s.direction = normalize(hp - pt);
-                s.inv_dir = 1.0f/s.direction;
-                float4 vv = {s.direction.x, s.direction.y, s.direction.z, 1.0};
-                float t = 1024;
-                float3 sn;
-                struct Material c;
-                ulong ptr;
-                int savedtrash = trash2;
-                cast(&s, scene, &sn, &t, &c, &trash2, &trash);
-                float3 shp = s.origin + s.direction*t;
-                float accum = 0.0;
-                if(distance(shp, hp) < 0.01f && (trash2 == savedtrash) && (dot(n, s.direction) > 0)) {
-                    accum += 1.0;
-                }
-                if(accum > 0.0) {
-                    float dt = dot(lnormal, pt);
-                    dt = clamp(dt, 0.0f, 1.0f);
-                    float att = distance(hp, pt);
-                    att *= att;
-                    att = 1.0 / (1.0 + (0.0162 * att));
-                    //att = 1.0;
-                    float3 halfAngle = normalize(pt - r->direction);
-                    diffsample += (((tri->mat.color*dt) * accum) * att * dot(n, s.direction))/(4);
-                    float ahalf = acos(dot(halfAngle, lnormal));
-                    float expn = ahalf / mat.specexp;
-                    expn = -(expn*expn);
-                    float blinn = exp(expn);
-                    blinn = clamp(blinn, 0.0f, 1.0f);
-                    if(dt == 0.0) {
-                         blinn = 0.0;
-                    }
-                    specsample += ((blinn * tri->mat.color * accum) * att)/(4);
-                }
-            }
-        }
-        speccolor += specsample;
-        lightamt += diffsample;
-    }
     for(int i = 0; i < scene->lightCount; i++) {
         if(dot(lnormal, -r->direction) < 0) {
             lnormal = -lnormal;
@@ -385,23 +302,30 @@ float4 trace(struct Ray *r, struct Scene* scene) {
         float3 l = normalize(lightpos - hp);
         float dt = dot(lnormal, l);
         dt = clamp(dt, 0.0f, 1.0f);
-        float accum = 0.0;
         struct Ray s;
         s.origin = hp + lnormal*0.001f;
-        s.direction  = normalize(lightpos - hp);
-        s.inv_dir = 1.0f/s.direction;
-        float t = 1024;
-        float3 sn;
-        struct Material c;
-        ulong ptr;
-        cast(&s, scene, &sn, &t, &c, &trash2, &trash);
-        float3 shp = s.origin + t*s.direction;
-        if((t > 1023) || distance(shp, s.origin) > distance(s.origin, lightpos)) 
-            accum += (1/1.0);
+        float x, y, z;
+        x = r->direction.x;
+        y = r->direction.y;
+        z = r->direction.z;
+        float accum = 0.0;
+        ulong a = scene->sr + 1227*(*(int*)&x+ *(int*)&y + *(int*)&z)+1;
+        for(int sx = 0; sx < 1; sx++) {
+            s.direction  = normalize(normalize(lightpos - hp) + randUnitVec(&a)*0.04f);
+            s.inv_dir = 1.0f/s.direction;
+            float t = 1024;
+            float3 sn;
+            struct Material c;
+            cast(&s, scene, &sn, &t, &c);
+            float3 shp = s.origin + t*s.direction;
+            if((t > 1023) || distance(shp, s.origin) > distance(s.origin, lightpos)) 
+                accum += (1/1.0);
+            a += sx;
+        }
         if(accum > 0.0) {
             float att = distance(s.origin, lightpos);
             att *= att;
-            att = 1.0 / (1.0 + (0.032 * att));
+            att = 1.0 / (1.0 + (0.001 * att));
             lightamt += ((scene->lights[i].color*dt) * accum) * att;
             float3 halfAngle = normalize(l - r->direction);
             float ahalf = acos(dot(halfAngle, lnormal));
@@ -420,7 +344,7 @@ float4 trace(struct Ray *r, struct Scene* scene) {
     return fcolor4 * afactor;
 }
 
-__kernel void _main(__write_only image2d_t img, uint width, uint height, uint tricount, uint spherecount, uint lightcount, __constant struct Triangle *tris, __constant struct Sphere *spheres, __constant struct Light *lights, struct CameraConfig camera, uint sr, __constant struct AreaLight *arealights, __constant uint *emittersets, uint alightcount) {
+__kernel void _main(__write_only image2d_t img, uint width, uint height, uint tricount, uint spherecount, uint lightcount, __constant struct Triangle *tris, __constant struct Sphere *spheres, __constant struct Light *lights, struct CameraConfig camera, uint sr, __constant struct AreaLight *arealights, __constant struct uint *emittersets, uint alightcount) {
     struct Scene scene;
     scene.triangles = tris;
     scene.spheres = spheres;
@@ -428,13 +352,10 @@ __kernel void _main(__write_only image2d_t img, uint width, uint height, uint tr
     scene.sphereCount = spherecount;
     scene.triCount = tricount;
     scene.lightCount = lightcount;
-    scene.alightCount = alightcount;
-    scene.alights = arealights;
-    scene.emittersets = emittersets;
     float dx = 1.0f / (float)width;
     float dy = 1.0f / (float)height;
     //float y = (float)(get_global_id(0)) / (float)(height);
-    float widthhalves = width/64;
+    float widthhalves = width/16;
     for(uint i = widthhalves*(get_global_id(1)); i < widthhalves*(get_global_id(1)+1); i++) {
             scene.sr = sr + i + get_global_id(0);
             float y = get_global_id(0)/(float)height;
@@ -446,7 +367,7 @@ __kernel void _main(__write_only image2d_t img, uint width, uint height, uint tr
             r.origin = camera.center;
             r.direction    = normalize(camright*x + (camera.up * y) + camera.lookat/* + noise*/);
             r.inv_dir = 1.0f/r.direction;
-            float4 color = pow(trace(&r, &scene), 1 / 2.2);
+            float4 color = trace(&r, &scene);
             int2 xy = {/*(int)(*/i/* + (nvx/8192.0)) % width*/, /*(int)(*/get_global_id(0)/* + (nvz/8192.0)) % height*/};
             write_imagef(img, xy, color);
     }

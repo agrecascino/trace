@@ -46,11 +46,11 @@ public:
     void SwitchBackend(RenderBackend back);
     void render(Framebuffer &fb);
 
-    inline void fast_srand(int seed);
+    void fast_srand(int seed);
 
     // Compute a pseudorandom integer.
     // Output value in range [0, 32767]
-    inline int fast_rand(void);
+    int fast_rand(void);
 
     ~Scene();
 private:
@@ -59,10 +59,12 @@ private:
     SphereCL *spheres_buf = NULL;
     TriangleCL *triangles_buf = NULL;
     LightCL *lights_buf = NULL;
+    AreaLightCL *alights_buf = NULL;
+    cl_uint *emittersets_buf = NULL;
     cl_context context;
     cl_command_queue queue;
     cl_kernel kernel;
-    cl_mem buffer = NULL, cl_tris = NULL, cl_spheres = NULL, cl_lights = NULL;
+    cl_mem buffer = NULL, cl_tris = NULL, cl_spheres = NULL, cl_lights = NULL, cl_alights = NULL, cl_emittersets = NULL;
     RenderBackend backend;
     RTCGeometry *geometry = NULL;
     RTCDevice device = rtcNewDevice("verbose=1");
@@ -73,6 +75,8 @@ private:
     std::unordered_map<size_t, Intersectable*> intersectables;
     unsigned long tricount = 0;
     unsigned long spherecount = 0;
+    unsigned long alightcount = 0;
+    unsigned long emittersetscount = 0;
     std::vector<Light*> lights;
     ctpl::thread_pool pool;
 };

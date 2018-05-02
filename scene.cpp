@@ -110,12 +110,35 @@ void Scene::SwitchBackend(RenderBackend back) {
 }
 
 void Scene::TranslateAndRotate() {
+    struct Alight {
+        std::vector<cl_uint> objs;
+    };
+
     spherecount = 0;
     tricount = 0;
-    for(unsigned long i = 0; i < intersectables.size(); i++) {
-        if(typeid(*intersectables[i]) == typeid(Triangle)) {
+    alightcount = 0;
+    emittersetscount = 0;
+    std::unordered_map<cl_uint, Alight> als;
+    std::unordered_map<cl_uint, Alight> alt;
+    for(auto kv : intersectables) {
+        Intersectable *obj = kv.second;
+        if(typeid(*obj) == typeid(Triangle)) {
+            if((obj->getMaterial()).emits >  0.001f) {
+                emittersetscount++;
+                if(alt.find(obj->getMaterial().alightid) == alt.end()) {
+                    alightcount++;
+                }
+                alt[obj->getMaterial().alightid].objs.push_back(tricount);
+            }
             tricount++;
-        } else if(typeid(*intersectables[i]) == typeid(Sphere)) {
+        } else if(typeid(*obj) == typeid(Sphere)) {
+            if((obj->getMaterial()).emits >  0.001f) {
+                emittersetscount++;
+                if(als.find(obj->getMaterial().alightid) == als.end()) {
+                    alightcount++;
+                }
+                als[obj->getMaterial().alightid].objs.push_back(spherecount);
+            }
             spherecount++;
         }
     }
@@ -128,9 +151,17 @@ void Scene::TranslateAndRotate() {
     if(lights_buf) {
         delete[] lights_buf;
     }
+    if(emittersets_buf) {
+        delete[] emittersets_buf;
+    }
+    if(alights_buf) {
+        delete[] alights_buf;
+    }
     triangles_buf = new TriangleCL[tricount];
     spheres_buf = new SphereCL[spherecount];
     lights_buf = new LightCL[lights.size()];
+    emittersets_buf = new cl_uint[emittersetscount];
+    alights_buf = new AreaLightCL[alightcount];
     for(size_t i = 0; i < lights.size(); i++) {
         glm::mat4x4 matrix = lights[i]->transform;
         glm::vec4 vec(0.0f, 0.0f, 0.0f, 1.0f);
@@ -142,14 +173,44 @@ void Scene::TranslateAndRotate() {
         lights_buf[i].color.s[1] = lights[i]->color.y;
         lights_buf[i].color.s[2] = lights[i]->color.z;
     }
+    //Sort area lights out.
+    size_t iemit = 0;
+    size_t ial = 0;
+    for(auto &kv: alt) {
+        AreaLightCL alcl;
+        Alight &alight = kv.second;
+        alcl.emitliststart = iemit;
+        alcl.emitters = alight.objs.size();
+        alcl.type = TRIANGLELIST;
+        for(cl_uint a : alight.objs) {
+            emittersets_buf[iemit] = a;
+            iemit++;
+        }
+        alights_buf[ial] = alcl;
+        ial++;
+    }
+    for(auto &kv: als) {
+        AreaLightCL alcl;
+        Alight &alight = kv.second;
+        alcl.emitliststart = iemit;
+        alcl.emitters = alight.objs.size();
+        alcl.type = SPHERELIST;
+        for(cl_uint a : alight.objs) {
+            emittersets_buf[iemit] = a;
+            iemit++;
+        }
+        alights_buf[ial] = alcl;
+        ial++;
+    }
     int tc = 0;
     int sc = 0;
-    for(unsigned long i = 0; i < intersectables.size(); i++) {
-        if(typeid(*intersectables[i]) == typeid(Triangle)) {
-            glm::mat4x4 matrix = intersectables[i]->getTransform();
-            glm::vec3 a = *(glm::vec3*)(((Triangle*)intersectables[i])->getVertexBuffer());
-            glm::vec3 b = *(glm::vec3*)(((Triangle*)intersectables[i])->getVertexBuffer() + 3);
-            glm::vec3 c = *(glm::vec3*)(((Triangle*)intersectables[i])->getVertexBuffer() + 6);
+    for(auto kv : intersectables) {
+        Intersectable *obj = kv.second;
+        if(typeid(*obj) == typeid(Triangle)) {
+            glm::mat4x4 matrix = obj->getTransform();
+            glm::vec3 a = *(glm::vec3*)(((Triangle*)obj)->getVertexBuffer());
+            glm::vec3 b = *(glm::vec3*)(((Triangle*)obj)->getVertexBuffer() + 3);
+            glm::vec3 c = *(glm::vec3*)(((Triangle*)obj)->getVertexBuffer() + 6);
             a = glm::vec3(matrix * glm::vec4(a, 1.0f));
             b = glm::vec3(matrix * glm::vec4(b, 1.0f));
             c = glm::vec3(matrix * glm::vec4(c, 1.0f));
@@ -163,7 +224,7 @@ void Scene::TranslateAndRotate() {
             triangles_buf[tc].pts[2].y = c.y;
             triangles_buf[tc].pts[2].z = c.z;
             MaterialCL m;
-            Material mat = intersectables[i]->getMaterial();
+            Material mat = obj->getMaterial();
             m.color.s[0] = mat.color.x;
             m.color.s[1] = mat.color.y;
             m.color.s[2] = mat.color.z;
@@ -172,19 +233,20 @@ void Scene::TranslateAndRotate() {
             m.specc = mat.specc;
             m.specexp = mat.specexp;
             m.rindex = mat.rindex;
+            m.emits = mat.emits;
             triangles_buf[tc].mat = m;
             tc++;
-        } else if(typeid(*intersectables[i]) == typeid(Sphere)) {
-            glm::mat4x4 matrix = intersectables[i]->getTransform();
+        } else if(typeid(*obj) == typeid(Sphere)) {
+            glm::mat4x4 matrix = obj->getTransform();
             glm::vec4 o4(0.0, 0.0, 0.0, 1.0);
             o4 = matrix * glm::vec4(0.0, 0.0, 0.0, 1.0);
             glm::vec3 o(o4);
             spheres_buf[sc].origin.x = o.x;
             spheres_buf[sc].origin.y = o.y;
             spheres_buf[sc].origin.z = o.z;
-            spheres_buf[sc].radius = ((Sphere*)intersectables[i])->radius;
+            spheres_buf[sc].radius = ((Sphere*)obj)->radius;
             MaterialCL m;
-            Material mat = intersectables[i]->getMaterial();
+            Material mat = obj->getMaterial();
             m.color.s[0] = mat.color.x;
             m.color.s[1] = mat.color.y;
             m.color.s[2] = mat.color.z;
@@ -193,6 +255,7 @@ void Scene::TranslateAndRotate() {
             m.specc = mat.specc;
             m.specexp = mat.specexp;
             m.rindex = mat.rindex;
+            m.emits = mat.emits;
             spheres_buf[sc].mat = m;
             sc++;
         }
@@ -203,6 +266,8 @@ void Scene::GPUUploadGeometry() {
     cl_tris = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, tricount * sizeof(TriangleCL), triangles_buf, 0);
     cl_lights = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, lights.size() * sizeof(LightCL), lights_buf, 0);
     cl_spheres = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, spherecount * sizeof(TriangleCL), spheres_buf, 0);
+    cl_alights = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, alightcount * sizeof(AreaLightCL), alights_buf, 0);
+    cl_emittersets = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, emittersetscount * sizeof(cl_uint), emittersets_buf, 0);
 }
 
 void Scene::RegenerateObjectCache() {
@@ -516,10 +581,13 @@ void Scene::render(Framebuffer &fb) {
             uint32_t r = fast_rand();
             cl_err = clSetKernelArg(kernel, 9, sizeof(CameraConfigCL),(void*)&cam);
             cl_err = clSetKernelArg(kernel, 10, sizeof(cl_uint),(void*)&r);
+            cl_err = clSetKernelArg(kernel, 11, sizeof(cl_alights), (void*)&cl_alights);
+            cl_err = clSetKernelArg(kernel, 12, sizeof(cl_emittersets), (void*)&cl_emittersets);
+            cl_err = clSetKernelArg(kernel, 13, sizeof(cl_uint), (void*)&alightcount);
             stateok();
             glFinish();
             stateok();
-            size_t worksize[2] = {fb.y, 16};
+            size_t worksize[2] = {fb.y, 64};
             cl_err = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, worksize, NULL, 0, NULL, NULL);
             stateok();
             if(prepframe(this, fb))
@@ -550,13 +618,13 @@ void Scene::render(Framebuffer &fb) {
     }
 }
 
-inline void Scene::fast_srand(int seed) {
+void Scene::fast_srand(int seed) {
     g_seed = seed;
 }
 
 // Compute a pseudorandom integer.
 // Output value in range [0, 32767]
-inline int Scene::fast_rand(void) {
+int Scene::fast_rand(void) {
     g_seed = (214013*g_seed+2531011);
     return (g_seed>>16)&0x7FFF;
 }

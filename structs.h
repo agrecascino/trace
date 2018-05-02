@@ -8,10 +8,22 @@
 #include <GL/glew.h>
 
 enum MatType {
-    DIFFUSE_GLOSS,
-    REFLECT_REFRACT,
-    REFLECT
+    DIFFUSE_GLOSS = 0,
+    REFLECT_REFRACT = 1,
+    REFLECT = 2
 };
+
+enum AreaLightType {
+    TRIANGLELIST,
+    SPHERELIST
+};
+
+struct AreaLightCL {
+    cl_uint emitliststart;
+    cl_uint emitters;
+    AreaLightType type;
+};
+
 
 struct CameraConfigCL {
     cl_float3 center;
@@ -26,6 +38,7 @@ struct MaterialCL {
     float diffc;
     float specc;
     float specexp;
+    float emits;
 };
 
 struct LightCL {
@@ -75,6 +88,8 @@ struct Material {
     float diffc;
     float specc;
     float specexp;
+    float emits = 0.0;
+    int alightid;
 };
 
 struct Light {
