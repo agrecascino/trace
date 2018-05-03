@@ -101,7 +101,7 @@ struct Scene {
     int triCount;
     int lightCount;
     int alightCount;
-    int sr;
+    ulong sr;
 };
 
 
@@ -314,14 +314,14 @@ float4 trace(struct Ray *r, struct Scene* scene) {
     x = r->direction.x;
     y = r->direction.y;
     z = r->direction.z;
-    ulong a = scene->sr + 1227*(get_global_id(0))+1;
+    ulong a = scene->sr;
     for(int i = 0; i < scene->alightCount; i++) {
         if(dot(lnormal, -r->direction) < 0) {
             lnormal = -lnormal;
         }
         float3 specsample = {0, 0, 0};
         float3 diffsample = {0, 0, 0};
-        for(uint sample = 0; sample < 4; sample++) {
+        for(uint sample = 0; sample < 12; sample++) {
             uint red = reduce(fast_rand(&a), scene->alights[i].emitters);
             if(scene->alights[i].type == TRIANGLELIST) {
                 uint chooser = scene->alights[i].emitliststart + red;
@@ -361,7 +361,7 @@ float4 trace(struct Ray *r, struct Scene* scene) {
                     att = 1.0 / (1.0 + (0.0162 * att));
                     //att = 1.0;
                     float3 halfAngle = normalize(pt - r->direction);
-                    diffsample += (((tri->mat.color*dt) * accum) * att * dot(n, s.direction))/(4);
+                    diffsample += (((tri->mat.color) * accum) * att * dot(n, s.direction))/(12);
                     float ahalf = acos(dot(halfAngle, lnormal));
                     float expn = ahalf / mat.specexp;
                     expn = -(expn*expn);
@@ -370,7 +370,7 @@ float4 trace(struct Ray *r, struct Scene* scene) {
                     if(dt == 0.0) {
                          blinn = 0.0;
                     }
-                    specsample += ((blinn * tri->mat.color * accum) * att)/(4);
+                    specsample += ((blinn * tri->mat.color * accum) * att)/(12);
                 }
             }
         }
@@ -420,7 +420,7 @@ float4 trace(struct Ray *r, struct Scene* scene) {
     return fcolor4 * afactor;
 }
 
-__kernel void _main(__write_only image2d_t img, uint width, uint height, uint tricount, uint spherecount, uint lightcount, __constant struct Triangle *tris, __constant struct Sphere *spheres, __constant struct Light *lights, struct CameraConfig camera, uint sr, __constant struct AreaLight *arealights, __constant uint *emittersets, uint alightcount) {
+__kernel void _main(__write_only image2d_t img, uint width, uint height, uint tricount, uint spherecount, uint lightcount, __constant struct Triangle *tris, __constant struct Sphere *spheres, __constant struct Light *lights, struct CameraConfig camera, ulong sr, __constant struct AreaLight *arealights, __constant uint *emittersets, uint alightcount) {
     struct Scene scene;
     scene.triangles = tris;
     scene.spheres = spheres;
@@ -434,9 +434,9 @@ __kernel void _main(__write_only image2d_t img, uint width, uint height, uint tr
     float dx = 1.0f / (float)width;
     float dy = 1.0f / (float)height;
     //float y = (float)(get_global_id(0)) / (float)(height);
-    float widthhalves = width/64;
+    float widthhalves = width/16;
     for(uint i = widthhalves*(get_global_id(1)); i < widthhalves*(get_global_id(1)+1); i++) {
-            scene.sr = sr + i + get_global_id(0);
+            scene.sr = sr + i*height + get_global_id(0);
             float y = get_global_id(0)/(float)height;
             float x = (float)(i) / (float)(width);
             float3 camright = cross(camera.up, camera.lookat) * ((float)width/height);

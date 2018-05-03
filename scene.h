@@ -50,7 +50,7 @@ public:
 
     // Compute a pseudorandom integer.
     // Output value in range [0, 32767]
-    int fast_rand(void);
+    uint64_t fast_rand(void);
 
     ~Scene();
 private:

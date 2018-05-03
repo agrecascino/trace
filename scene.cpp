@@ -578,16 +578,16 @@ void Scene::render(Framebuffer &fb) {
             cam.up.s[0] = config.up.x;
             cam.up.s[1] = config.up.y;
             cam.up.s[2] = config.up.z;
-            uint32_t r = fast_rand();
+            uint64_t r = fast_rand();
             cl_err = clSetKernelArg(kernel, 9, sizeof(CameraConfigCL),(void*)&cam);
-            cl_err = clSetKernelArg(kernel, 10, sizeof(cl_uint),(void*)&r);
+            cl_err = clSetKernelArg(kernel, 10, sizeof(cl_ulong),(void*)&r);
             cl_err = clSetKernelArg(kernel, 11, sizeof(cl_alights), (void*)&cl_alights);
             cl_err = clSetKernelArg(kernel, 12, sizeof(cl_emittersets), (void*)&cl_emittersets);
             cl_err = clSetKernelArg(kernel, 13, sizeof(cl_uint), (void*)&alightcount);
             stateok();
             glFinish();
             stateok();
-            size_t worksize[2] = {fb.y, 64};
+            size_t worksize[2] = {fb.y, 16};
             cl_err = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, worksize, NULL, 0, NULL, NULL);
             stateok();
             if(prepframe(this, fb))
@@ -624,9 +624,11 @@ void Scene::fast_srand(int seed) {
 
 // Compute a pseudorandom integer.
 // Output value in range [0, 32767]
-int Scene::fast_rand(void) {
-    g_seed = (214013*g_seed+2531011);
-    return (g_seed>>16)&0x7FFF;
+uint64_t Scene::fast_rand(void) {
+    uint64_t z = (g_seed += 0x9e3779b97f4a7c15);
+    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+    z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+    return z ^ (z >> 31);
 }
 
 Scene::~Scene() {
