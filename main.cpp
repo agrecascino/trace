@@ -258,12 +258,14 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     glm::mat4x4 mat;
     mat = glm::translate(mat, glm::vec3(sin(glfwGetTime()/2.0)*20, 0.0, cos(glfwGetTime()/2.0)*20));
     s->setTransform(mat);
-    double xpos = fb.x/2, ypos = fb.y/2;
+    int w,h;
+    glfwGetWindowSize(window, &w, &h);
+    double xpos = w/2, ypos = h/2;
     if(mlocked) {
         glfwGetCursorPos(window, &xpos, &ypos);
-        glfwSetCursorPos(window, fb.x/2, fb.y/2);
-        horizontal += mspeed * -(fb.x/2 - xpos);
-        vertical += mspeed * (fb.y/2 - ypos);
+        glfwSetCursorPos(window, w/2, h/2);
+        horizontal += mspeed * -(w/2- xpos);
+        vertical += mspeed * (h/2 - ypos);
     }
 
     if (vertical > 1.5f) {
@@ -362,8 +364,8 @@ void DrawFrameTest(Scene *t, Framebuffer &fb) {
             uint8_t *r = drawText(texts[i].text, glm::vec4(0.0, 0.0, 0.0, 1));
             glGenTextures(1, &tex);
             glBindTexture(GL_TEXTURE_2D, tex);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texts[i].text.size()*9, 15, 0, GL_RGBA, GL_UNSIGNED_BYTE, r);
             glBindTexture(GL_TEXTURE_2D, tex);
             glBegin(GL_QUADS);
@@ -412,13 +414,13 @@ int main(int argc, char **argv) {
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
     glfwInit();
-    window = glfwCreateWindow(1600, 900, "t", NULL, NULL);
+    window = glfwCreateWindow(1920, 1080, "t", NULL, NULL);
     glfwMakeContextCurrent(window);
     glewInit();
-    Scene man(currentbackend, 4, PrepFrameTest ,DrawFrameTest);
+    Scene man(currentbackend, 4, PrepFrameTest, DrawFrameTest);
     Framebuffer fb;
-    fb.x = 1600;
-    fb.y = 900;
+    fb.x = 1920;
+    fb.y = 1080;
     fb.fb = (uint8_t*)malloc(fb.x*fb.y*3);
 
     //cudaDeviceSynchronize();

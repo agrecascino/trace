@@ -322,7 +322,9 @@ float4 trace(struct Ray *r, struct Scene* scene) {
         }
         float3 specsample = {0, 0, 0};
         float3 diffsample = {0, 0, 0};
-        for(uint sample = 0; sample < 64; sample++) {
+        const int samplec = 8;
+        const float invs = 1.0f/samplec;
+        for(uint sample = 0; sample < samplec; sample++) {
             uint red = reduce(fast_rand(&a), scene->alights[i].emitters);
             if(scene->alights[i].type == TRIANGLELIST) {
                 uint chooser = scene->alights[i].emitliststart + red;
@@ -331,8 +333,8 @@ float4 trace(struct Ray *r, struct Scene* scene) {
                 float3 e0 = tri->pts[1] - tri->pts[0];
                 float3 e1 = tri->pts[2] - tri->pts[0];
                 float3 n = normalize(cross(e0, e1));
-                float rb = (fast_rand(&a) & 0xFFFF)/65535.0f;
-                float sb = (fast_rand(&a) & 0xFFFF)/65535.0f;
+                float rb = (fast_rand(&a) & 0xFFFF)*(0.00001525902);
+                float sb = (fast_rand(&a) & 0xFFFF)*(0.00001525902);
                 if((rb+sb) >= 1.0) {
                     rb = 1 - rb;
                     sb = 1 - sb;
@@ -342,9 +344,9 @@ float4 trace(struct Ray *r, struct Scene* scene) {
                 s.origin = pt + n*0.001f;
                 s.direction = normalize(hp - pt);
                 s.inv_dir = 1.0f/s.direction;
-		if((dot(lnormal, s.direction) > 0) || (dot(n, s.direction) < 0.001f)) {
-			continue;
-		}
+		        if((dot(lnormal, s.direction) > 0) || (dot(n, s.direction) < 0.001f)) {
+			        continue;
+		        }
                 float4 vv = {s.direction.x, s.direction.y, s.direction.z, 1.0};
                 float t = 1024;
                 float3 sn;
@@ -357,14 +359,15 @@ float4 trace(struct Ray *r, struct Scene* scene) {
                     accum += 1.0;
                 }
                 if(accum > 0.0) {
-                    float dt = dot(lnormal, pt);
+                    float3 ll = normalize(pt - hp);
+                    float dt = dot(lnormal, ll);
                     dt = clamp(dt, 0.0f, 1.0f);
                     float att = distance(hp, pt);
                     att *= att;
                     att = 1.0 / (1.0 + (0.0162 * att));
                     //att = 1.0;
-                    float3 halfAngle = normalize(pt - r->direction);
-                    diffsample += (((tri->mat.color) * accum) * att * dot(n, s.direction))/(64);
+                    float3 halfAngle = normalize(ll - r->direction);
+                    diffsample += (((tri->mat.color*dt) * accum) * att * dot(n, s.direction))*invs;
                     float ahalf = acos(dot(halfAngle, lnormal));
                     float expn = ahalf / mat.specexp;
                     expn = -(expn*expn);
@@ -373,7 +376,7 @@ float4 trace(struct Ray *r, struct Scene* scene) {
                     if(dt == 0.0) {
                          blinn = 0.0;
                     }
-                    specsample += ((blinn * tri->mat.color * accum) * att)/(64);
+                    specsample += ((blinn * tri->mat.color * accum) * att)*invs;
                 }
             }
         }
