@@ -322,7 +322,7 @@ float4 trace(struct Ray *r, struct Scene* scene) {
         }
         float3 specsample = {0, 0, 0};
         float3 diffsample = {0, 0, 0};
-        const int samplec = 8;
+        const int samplec = 1;
         const float invs = 1.0f/samplec;
         for(uint sample = 0; sample < samplec; sample++) {
             uint red = reduce(fast_rand(&a), scene->alights[i].emitters);
