@@ -17,11 +17,15 @@ HEADERS += \
     scene.h \
     player.h \
     libfont.h \
-    qdbmp.h
+    qdbmp.h \
+    halton.hpp \
+    sobol.hpp
 SOURCES += qdbmp.c \
     main.cpp \
     triangle.cpp \
     sphere.cpp \
     scene.cpp \
     structs.cpp \
-    libfont.cpp
+    libfont.cpp \
+    halton.cpp \
+    sobol.cpp

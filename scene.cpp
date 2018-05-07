@@ -7,6 +7,8 @@
 #include <CL/cl_gl.h>
 #include <iostream>
 #include <GL/glx.h>
+#include "halton.hpp"
+#include "sobol.hpp"
 
 static cl_int cl_err = 0;
 static void stateok() {
@@ -157,11 +159,20 @@ void Scene::TranslateAndRotate() {
     if(alights_buf) {
         delete[] alights_buf;
     }
+    if(halton_buf) {
+        delete[] halton_buf;
+    }
     triangles_buf = new TriangleCL[tricount];
     spheres_buf = new SphereCL[spherecount];
     lights_buf = new LightCL[lights.size()];
     emittersets_buf = new cl_uint[emittersetscount];
     alights_buf = new AreaLightCL[alightcount];
+    halton_buf = new float[1024];
+    double *h = halton_sequence(0, 1023, 1);
+    for(size_t i = 0; i < 512; i++) {
+        halton_buf[i*2] = h[i*2];
+        halton_buf[i*2 + 1] = h[i*2 + 1];
+    }
     for(size_t i = 0; i < lights.size(); i++) {
         glm::mat4x4 matrix = lights[i]->transform;
         glm::vec4 vec(0.0f, 0.0f, 0.0f, 1.0f);
@@ -268,6 +279,7 @@ void Scene::GPUUploadGeometry() {
     cl_spheres = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, spherecount * sizeof(TriangleCL), spheres_buf, 0);
     cl_alights = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, alightcount * sizeof(AreaLightCL), alights_buf, 0);
     cl_emittersets = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, emittersetscount * sizeof(cl_uint), emittersets_buf, 0);
+    cl_halton = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 1024 * sizeof(cl_float), halton_buf, 0);
 }
 
 void Scene::RegenerateObjectCache() {
@@ -408,7 +420,6 @@ void Scene::RenderSliceTape(size_t yfirst, size_t ylast, Framebuffer &fb) {
                     }
                 }
             }
-
             for(int i = 0; i < ((np > 7) ? 8 : 1); i++) {
                 if(!hit[i].intersected)
                     continue;
@@ -493,7 +504,7 @@ void Scene::RenderSliceEmbree(size_t yfirst, size_t ylast, Framebuffer &fb) {
                     r.origin = origin;
                     r.direction = direction;
                     Intersection s_hit;
-                    //embreecast(&s, &s_hit, valid);
+                    //embreecast(&s, &s_hit, valid)cl_halton;
                     tapecast(&r, &s_hit, 1);
                     if((!s_hit.intersected) || (glm::distance(s_hit.point, origin) > glm::distance(origin, lightlocation))) {
                         fcolor[i] += ((light->color*dt)* hit[i].mat.color);
@@ -565,10 +576,13 @@ void Scene::render(Framebuffer &fb) {
             cl_err = clSetKernelArg(kernel, 8, sizeof(cl_lights),(void*)&cl_lights);
             stateok();
             CameraConfigCL cam;
-            cl_mem b1, b2, b3;
+            cl_mem b1, b2, b3, b4, b5, b6;
             b1 = cl_tris;
             b2 = cl_spheres;
             b3 = cl_lights;
+            b4 = cl_alights;
+            b5 = cl_emittersets;
+            b6 = cl_halton;
             cam.center.s[0] = config.center.x;
             cam.center.s[1] = config.center.y;
             cam.center.s[2] = config.center.z;
@@ -585,6 +599,8 @@ void Scene::render(Framebuffer &fb) {
             cl_err = clSetKernelArg(kernel, 12, sizeof(cl_emittersets), (void*)&cl_emittersets);
             cl_err = clSetKernelArg(kernel, 13, sizeof(cl_uint), (void*)&alightcount);
             stateok();
+            cl_err = clSetKernelArg(kernel, 14, sizeof(cl_halton), (void*)&cl_halton);
+            stateok();
             glFinish();
             stateok();
             size_t worksize[2] = {fb.y, 16};
@@ -597,6 +613,9 @@ void Scene::render(Framebuffer &fb) {
             clReleaseMemObject(b1);
             clReleaseMemObject(b2);
             clReleaseMemObject(b3);
+            clReleaseMemObject(b4);
+            clReleaseMemObject(b5);
+            clReleaseMemObject(b6);
             stateok();
             cl_err = clEnqueueReleaseGLObjects(queue, 1, &buffer, 0, 0, NULL);
             clReleaseMemObject(buffer);

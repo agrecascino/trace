@@ -61,10 +61,11 @@ private:
     LightCL *lights_buf = NULL;
     AreaLightCL *alights_buf = NULL;
     cl_uint *emittersets_buf = NULL;
+    cl_float *halton_buf = NULL;
     cl_context context;
     cl_command_queue queue;
     cl_kernel kernel;
-    cl_mem buffer = NULL, cl_tris = NULL, cl_spheres = NULL, cl_lights = NULL, cl_alights = NULL, cl_emittersets = NULL;
+    cl_mem buffer = NULL, cl_tris = NULL, cl_spheres = NULL, cl_lights = NULL, cl_alights = NULL, cl_emittersets = NULL, cl_halton = NULL;
     RenderBackend backend;
     RTCGeometry *geometry = NULL;
     RTCDevice device = rtcNewDevice("verbose=1");
