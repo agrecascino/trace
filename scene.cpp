@@ -168,7 +168,7 @@ void Scene::TranslateAndRotate() {
     emittersets_buf = new cl_uint[emittersetscount];
     alights_buf = new AreaLightCL[alightcount];
     halton_buf = new float[1024];
-    double *h = halton_sequence(0, 1023, 1);
+    double *h = halton_sequence(0, 511, 2);
     for(size_t i = 0; i < 512; i++) {
         halton_buf[i*2] = h[i*2];
         halton_buf[i*2 + 1] = h[i*2 + 1];
@@ -603,7 +603,7 @@ void Scene::render(Framebuffer &fb) {
             stateok();
             glFinish();
             stateok();
-            size_t worksize[2] = {fb.y, 16};
+            size_t worksize[2] = {fb.y, 160};
             cl_err = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, worksize, NULL, 0, NULL, NULL);
             stateok();
             if(prepframe(this, fb))

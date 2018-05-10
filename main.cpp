@@ -114,6 +114,13 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         white_unreflective.specexp = 0.0;
         white_unreflective.specc = 0;
         white_unreflective.rindex = 1.0;
+        Material white_reflective;
+        white_reflective.color = glm::vec3(1.0, 1.0, 1.0);
+        white_reflective.diffc = 1.0;
+        white_reflective.specexp = 0.0;
+        white_reflective.specc = 0;
+        white_reflective.rindex = 1.31;
+        white_reflective.type = REFLECT_REFRACT;
         glm::vec3 tris[3] = {glm::vec3(40.0, -3.0, -40.0), glm::vec3(-40.0, -3.0, 40.0), glm::vec3(-40.0, -3.0, -40.0)};
         Triangle *tri = new Triangle(tris, white_unreflective);
         glm::vec3 tris2[3] = {glm::vec3(40.0, -3.0, -40.0), glm::vec3(-40.0, -3.0, 40.0), glm::vec3(40.0, -3.0, 40.0)};
@@ -147,6 +154,7 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         emissive.rindex = 1.0;
         Material greenemits;
         greenemits.color = glm::vec3(0, 0.5,0.33);
+        //greenemits.color = glm::vec3(0.103634, 0.6253447208, 0.9573695762);
         greenemits.type = DIFFUSE_GLOSS;
         greenemits.alightid = 1;
         greenemits.specexp = 0.0;
@@ -154,8 +162,10 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         greenemits.specc = 0.0;
         greenemits.emits = 1.0;
         greenemits.rindex = 1.0;
+        greenemits.alightid = 2;
         Material redemits;
         redemits.color = glm::vec3(0.5,0.0,0.1);
+        //redemits.color = glm::vec3(0.91575012927, 0.40454082256, 0.48776520187);
         redemits.type = DIFFUSE_GLOSS;
         redemits.alightid = 1;
         redemits.specexp = 0.0;
@@ -163,6 +173,7 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         redemits.specc = 0.0;
         redemits.emits = 1.0;
         redemits.rindex = 1.0;
+        redemits.alightid = 3;
         glm::mat4x4 m;
         glm::vec3 etris[3] = {glm::vec3(1.5, 1.5, -2.0), glm::vec3(1.5, 1.5, -5.0), glm::vec3(3, 4.5, -2.0)};
         glm::vec3 etris2[3] = {glm::vec3(1.5, 1.5, -5.0), glm::vec3(3, 4.5, -5.0), glm::vec3(3, 4.5, -2.0)};
@@ -183,7 +194,7 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         s3 = new Sphere(glm::vec3(10.0, 3.0, 10.0), 4, r);
         Light *l = new Light(glm::vec3(-10.0, 8.0, -10.0), glm::vec3(0.0, 0.0, 1.0), glm::vec2(1.0, 0.20));
         Light *l2 = new Light(glm::vec3(10, 20, 10), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1.0, 0.20));
-        Sphere *golfball = new Sphere(glm::vec3(-5.5, 1, 2.0), 2, white_unreflective);
+        Sphere *golfball = new Sphere(glm::vec3(-5.5, 1, 2.0), 2, white_reflective);
 //        for(int i = 0; i < 10; i++) {
 //            Material gdif;
 //            gdif.type = DIFFUSE_GLOSS;
@@ -414,13 +425,13 @@ int main(int argc, char **argv) {
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
     glfwInit();
-    window = glfwCreateWindow(1920, 1080, "t", NULL, NULL);
+    window = glfwCreateWindow(1600, 900, "t", NULL, NULL);
     glfwMakeContextCurrent(window);
     glewInit();
     Scene man(currentbackend, 4, PrepFrameTest, DrawFrameTest);
     Framebuffer fb;
-    fb.x = 1920;
-    fb.y = 1080;
+    fb.x = 1600;
+    fb.y = 900;
     fb.fb = (uint8_t*)malloc(fb.x*fb.y*3);
 
     //cudaDeviceSynchronize();
