@@ -98,6 +98,9 @@ struct Scene {
   ulong sr;
 };
 
+const uint DEPTH = 5;
+const uint prop_constant = pow(2, DEPTH);
+
 struct CastResult {
   float3 normal;
   float tval;
@@ -107,24 +110,24 @@ struct CastResult {
   int sid;
 };
 
+struct RayTree {
+  struct Ray r[prop_constant];
+  struct CastResult res[prop_constant];
+  struct float3 colors[prop_constant];
+};
+
 int isphere(struct Ray *r, float *t, __constant struct Sphere *sphere,
             float3 *normal) {
-  float3 p = r->origin - sphere->origin;
-  float rpow2 = sphere->radius * sphere->radius;
-  float p_d = dot(p, r->direction);
-
-  if (p_d > 0 || dot(p, p) < rpow2)
-    return -1;
-
-  float3 a = p - p_d * r->direction;
-  float apow2 = dot(a, a);
-  if (apow2 > rpow2)
-    return -1;
-  float h = half_sqrt(rpow2 - apow2);
-  float3 i = a - h * r->direction;
-  float3 pt = sphere->origin + i;
-  *t = ((pt - r->origin) / r->direction).x;
-  *normal = i / sphere->radius;
+  float3 m = r->origin - sphere->origin;
+  float b = dot(m, r->direction);
+  float c = dot(m, m) - sphere->radius*sphere->radius;
+  if(c > 0.0f && b > 0.0f) return -1;
+  float discr = b*b - c;
+  if(discr < 0.0f) return -1;
+  float t0 = -b - sqrt(discr);
+  *t = t0;
+  float3 q = r->origin + t0*r->direction;
+  *normal = normalize(q - sphere->origin);
   return 0;
 }
 
@@ -341,7 +344,7 @@ struct CastResult refracteval(struct CastResult ref, struct Ray *r,
     refinal.sid = -1;
     refinal.tval = ref.tval;
     int depth = 0;
-    while ((refinal.mat.type == REFLECT_REFRACT) && depth < 3 &&
+    while ((refinal.mat.type == REFLECT_REFRACT) && depth < 5 &&
            (refinal.tval < 1023)) { // set depth to 0 at the first ray
       if (dot(refinal.normal, -r->direction) < 0) {
         refinal.normal = -refinal.normal;
@@ -484,20 +487,46 @@ float3 shade(struct Ray *r, struct Scene *scene, struct CastResult res) {
   return fc;
 }
 
+void populateraytree(struct RayTree *tree) {
+  for(uint i = 1; i < depth; i++) {
+    for(uint j = 0; j < pow(2, i); j++) {
+      uint upnode = j/2;
+      struct CastResult refinal = tree.res[upnode];
+      struct Ray r = tree.r[upnode];
+      float3 hp = r->origin + refinal.tval*r->direction;
+      if(j & 0x01) {  
+        
+      } else {
+        if (dot(refinal.normal, -r->direction) < 0) {
+          refinal.normal = -refinal.normal;
+        }
+        float kr = 1.0; // fresnel(r->direction, lnormal, mat.rindex);
+        afactor *= kr * 0.9;
+        depth++;
+        float3 refd =
+            normalize(r->direction - 2.0f * dot(r->direction, refinal.normal) * refinal.normal);
+        r->origin = hp + refd * 0.001f;
+        r->direction = refd;
+        r->inv_dir = 1.0f / refd;
+        struct CastResult ref2 = cast(r, scene);
+        tree.r[(pow(2, i)-1) + j]
+      }
+    }
+  }
+}
+
 float4 trace(struct Ray *r, struct Scene *scene) {
   float4 color = {(0.12752977781), (0.3066347662), 0.845164518, 1.0};
   float3 fcolor = {0, 0, 0};
   float afactor = 1.0;
   struct CastResult primres = cast(r, scene);
-  struct Ray refray = *r;
-  struct CastResult refres = reflecteval(primres, &refray, scene);
-  struct Ray fractray = *r;
-  struct CastResult refrres = refracteval(primres, &fractray, scene);
-  float3 hp = r->origin + primres.tval * r->direction;
+  struct RayTree tree;
+  tree.r[0] = *r;
+  tree.res[0] = primres;
   if (primres.tval > 1023)
     return color * afactor;
 
-  float3 fc = /*shade(r, scene, primres) + (shade(&refray, scene, refres)*refres.attent) + */shade(&fractray, scene, refrres);
+  float3 fc = ;
   float4 fcolor4 = {fc.x, fc.y, fc.z, 1.0};
   return fcolor4 * afactor;
 }
