@@ -98,9 +98,8 @@ struct Scene {
   ulong sr;
 };
 
-const uint DEPTH = 5;
-const uint prop_constant = pow(2, DEPTH);
-
+__constant const uint depth = 5;
+#define prop_constant 2 * 2 * 2 * 2 * 2
 struct CastResult {
   float3 normal;
   float tval;
@@ -113,7 +112,7 @@ struct CastResult {
 struct RayTree {
   struct Ray r[prop_constant];
   struct CastResult res[prop_constant];
-  struct float3 colors[prop_constant];
+  float3 colors[prop_constant];
 };
 
 int isphere(struct Ray *r, float *t, __constant struct Sphere *sphere,
@@ -487,32 +486,50 @@ float3 shade(struct Ray *r, struct Scene *scene, struct CastResult res) {
   return fc;
 }
 
-void populateraytree(struct RayTree *tree) {
+void populateraytree(struct RayTree *tree, struct Scene *scene) {
   for(uint i = 1; i < depth; i++) {
-    for(uint j = 0; j < pow(2, i); j++) {
+    uint lfact = pown(2.0f, (float)i);
+    for(uint j = 0; j < lfact; j++) {
       uint upnode = j/2;
-      struct CastResult refinal = tree.res[upnode];
-      struct Ray r = tree.r[upnode];
-      float3 hp = r->origin + refinal.tval*r->direction;
+      struct CastResult refinal = tree->res[upnode];
+      struct Ray r = tree->r[upnode];
+      float3 hp = r.origin + refinal.tval*r.direction;
       if(j & 0x01) {  
-        
-      } else {
-        if (dot(refinal.normal, -r->direction) < 0) {
+        if(refinal.mat.type != REFLECT_REFRACT)
+          goto noeval;
+        if (dot(refinal.normal, -r.direction) < 0) {
           refinal.normal = -refinal.normal;
         }
-        float kr = 1.0; // fresnel(r->direction, lnormal, mat.rindex);
-        afactor *= kr * 0.9;
-        depth++;
         float3 refd =
-            normalize(r->direction - 2.0f * dot(r->direction, refinal.normal) * refinal.normal);
-        r->origin = hp + refd * 0.001f;
-        r->direction = refd;
-        r->inv_dir = 1.0f / refd;
-        struct CastResult ref2 = cast(r, scene);
-        tree.r[(pow(2, i)-1) + j]
+            refract(r.direction, refinal.normal, refinal.mat.rindex);
+        r.origin = hp + refd * 0.001f;
+        r.direction = refd;
+        r.inv_dir = 1.0f / refd;
+        struct CastResult ref2 = cast(&r, scene);
+        tree->r[(lfact-1) + j] = r;
+        tree->res[(lfact-1) + j] = ref2;
+      } else {
+        if((refinal.mat.type != REFLECT_REFRACT) && (refinal.mat.type != REFLECT))
+          goto noeval;
+        if (dot(refinal.normal, -r.direction) < 0) {
+          refinal.normal = -refinal.normal;
+        }
+        float3 refd =
+            normalize(r.direction - 2.0f * dot(r.direction, refinal.normal) * refinal.normal);
+        r.origin = hp + refd * 0.001f;
+        r.direction = refd;
+        r.inv_dir = 1.0f / refd;
+        struct CastResult ref2 = cast(&r, scene);
+        tree->r[(lfact-1) + j] = r;
+        tree->res[(lfact-1) + j] = ref2;
       }
+      noeval:
+      continue;
     }
   }
+}
+
+void solveraytree(struct RayTree *tree, struct Scene *scene) {
 }
 
 float4 trace(struct Ray *r, struct Scene *scene) {
@@ -523,10 +540,11 @@ float4 trace(struct Ray *r, struct Scene *scene) {
   struct RayTree tree;
   tree.r[0] = *r;
   tree.res[0] = primres;
+  populateraytree(&tree, scene);
   if (primres.tval > 1023)
     return color * afactor;
 
-  float3 fc = ;
+  float3 fc = shade(&tree.r[2], scene, tree.res[2]);
   float4 fcolor4 = {fc.x, fc.y, fc.z, 1.0};
   return fcolor4 * afactor;
 }
