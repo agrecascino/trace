@@ -98,8 +98,8 @@ struct Scene {
   ulong sr;
 };
 
-__constant const uint depth = 5;
-#define prop_constant 2 * 2 * 2 * 2 * 2
+__constant const uint depth = 2;
+#define prop_constant (2 * 2)
 struct CastResult {
   float3 normal;
   float tval;
@@ -113,6 +113,7 @@ struct RayTree {
   struct Ray r[prop_constant];
   struct CastResult res[prop_constant];
   float3 colors[prop_constant];
+  int exists[prop_constant];
 };
 
 int isphere(struct Ray *r, float *t, __constant struct Sphere *sphere,
@@ -490,11 +491,15 @@ void populateraytree(struct RayTree *tree, struct Scene *scene) {
   for(uint i = 1; i < depth; i++) {
     uint lfact = pown(2.0f, (float)i);
     for(uint j = 0; j < lfact; j++) {
-      uint upnode = j/2;
+      uint nodeid = lfact + j;
+      uint upnode = (nodeid/2) - 1;
       struct CastResult refinal = tree->res[upnode];
       struct Ray r = tree->r[upnode];
       float3 hp = r.origin + refinal.tval*r.direction;
-      if(j & 0x01) {  
+      tree->colors[nodeid - 1] = (0, 0, 0);
+      if(!tree->exists[upnode])
+        continue;
+      if(j & 0x01) {
         if(refinal.mat.type != REFLECT_REFRACT)
           goto noeval;
         if (dot(refinal.normal, -r.direction) < 0) {
@@ -506,8 +511,10 @@ void populateraytree(struct RayTree *tree, struct Scene *scene) {
         r.direction = refd;
         r.inv_dir = 1.0f / refd;
         struct CastResult ref2 = cast(&r, scene);
-        tree->r[(lfact-1) + j] = r;
-        tree->res[(lfact-1) + j] = ref2;
+        tree->r[nodeid - 1] = r;
+        tree->res[nodeid - 1] = ref2;
+        tree->exists[nodeid - 1] = 1;
+        tree->colors[nodeid - 1] = (1, 0, 1);//shade(&r, scene, ref2);
       } else {
         if((refinal.mat.type != REFLECT_REFRACT) && (refinal.mat.type != REFLECT))
           goto noeval;
@@ -520,8 +527,10 @@ void populateraytree(struct RayTree *tree, struct Scene *scene) {
         r.direction = refd;
         r.inv_dir = 1.0f / refd;
         struct CastResult ref2 = cast(&r, scene);
-        tree->r[(lfact-1) + j] = r;
-        tree->res[(lfact-1) + j] = ref2;
+        tree->r[nodeid - 1] = r;
+        tree->res[nodeid - 1] = ref2;
+        tree->exists[nodeid - 1] = 1;
+        tree->colors[nodeid - 1] = (1, 0, 1);//shade(&r, scene, ref2);
       }
       noeval:
       continue;
@@ -540,11 +549,12 @@ float4 trace(struct Ray *r, struct Scene *scene) {
   struct RayTree tree;
   tree.r[0] = *r;
   tree.res[0] = primres;
-  populateraytree(&tree, scene);
+  tree.exists[0] = 1;
+  tree.colors[0] = shade(r, scene, primres);
   if (primres.tval > 1023)
     return color * afactor;
-
-  float3 fc = shade(&tree.r[2], scene, tree.res[2]);
+  populateraytree(&tree, scene);
+  float3 fc = tree.colors[2];
   float4 fcolor4 = {fc.x, fc.y, fc.z, 1.0};
   return fcolor4 * afactor;
 }

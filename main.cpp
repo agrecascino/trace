@@ -425,13 +425,13 @@ int main(int argc, char **argv) {
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
     glfwInit();
-    window = glfwCreateWindow(1600, 900, "t", NULL, NULL);
+    window = glfwCreateWindow(1280, 720, "t", NULL, NULL);
     glfwMakeContextCurrent(window);
     glewInit();
     Scene man(currentbackend, 4, PrepFrameTest, DrawFrameTest);
     Framebuffer fb;
-    fb.x = 1600;
-    fb.y = 900;
+    fb.x = 1280;
+    fb.y = 720;
     fb.fb = (uint8_t*)malloc(fb.x*fb.y*3);
 
     //cudaDeviceSynchronize();
