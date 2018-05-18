@@ -514,7 +514,7 @@ void populateraytree(struct RayTree *tree, struct Scene *scene) {
         tree->r[nodeid - 1] = r;
         tree->res[nodeid - 1] = ref2;
         tree->exists[nodeid - 1] = 1;
-        tree->colors[nodeid - 1] = (1, 0, 1);//shade(&r, scene, ref2);
+        tree->colors[nodeid - 1] = shade(&r, scene, ref2);
       } else {
         if((refinal.mat.type != REFLECT_REFRACT) && (refinal.mat.type != REFLECT))
           goto noeval;
@@ -530,7 +530,7 @@ void populateraytree(struct RayTree *tree, struct Scene *scene) {
         tree->r[nodeid - 1] = r;
         tree->res[nodeid - 1] = ref2;
         tree->exists[nodeid - 1] = 1;
-        tree->colors[nodeid - 1] = (1, 0, 1);//shade(&r, scene, ref2);
+        tree->colors[nodeid - 1] = shade(&r, scene, ref2);
       }
       noeval:
       continue;
@@ -554,7 +554,7 @@ float4 trace(struct Ray *r, struct Scene *scene) {
   if (primres.tval > 1023)
     return color * afactor;
   populateraytree(&tree, scene);
-  float3 fc = tree.colors[2];
+  float3 fc = tree.colors[0] + tree.colors[1] + tree.colors[2];
   float4 fcolor4 = {fc.x, fc.y, fc.z, 1.0};
   return fcolor4 * afactor;
 }
