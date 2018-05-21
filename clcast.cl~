@@ -133,7 +133,7 @@ int isphere(struct Ray *r, float *t, __constant struct Sphere *sphere,
 
 int itriangle(struct Ray *r, float *t, __constant struct Triangle *tri,
               float3 *normal) {
-  const float eps = 0.0000001f;
+  const float eps = 0.0000001;
   float3 edge1, edge2, h, s, q;
   float a, f, u, v;
   float3 pt0 = tri->pts[0];
@@ -148,12 +148,12 @@ int itriangle(struct Ray *r, float *t, __constant struct Triangle *tri,
   f = 1 / a;
   s = r->origin - pt0;
   u = f * dot(s, h);
-  if (u < 0.0f || u > 1.0f) {
+  if (u < 0.0 || u > 1.0) {
     return -1;
   }
   q = cross(s, edge1);
   v = f * dot(r->direction, q);
-  if (v < 0.0f || u + v > 1.0f)
+  if (v < 0.0 || u + v > 1.0)
     return -1;
   *t = f * dot(edge2, q);
   if (*t < eps) {
@@ -208,10 +208,10 @@ struct AABB genTriangleBounds(__constant struct Triangle *triangle) {
 }
 
 struct CastResult cast(struct Ray *r, struct Scene *scene) {
-  float t = 1024.0f;
+  float t = 1024.0;
   float3 fcolor = {0, 0, 0};
   struct CastResult res;
-  res.tval = 1024.0f;
+  res.tval = 1024.0;
   float3 tnormal;
   for (int i = 0; i < scene->sphereCount; i++) {
     if (boundcheck(r, genSphereBounds(&scene->spheres[i])) &&
@@ -242,18 +242,18 @@ struct CastResult cast(struct Ray *r, struct Scene *scene) {
 
 float fresnel(float3 inc, float3 norm, float rdex) {
   float idotn = dot(inc, norm);
-  float eta_i = 1.0f;
+  float eta_i = 1.0;
   float eta_t = rdex;
-  if (idotn > 0.0f) {
+  if (idotn > 0.0) {
     eta_i = eta_t;
-    eta_t = 1.0f;
+    eta_t = 1.0;
   }
 
-  float sin_t = eta_i / eta_t * half_sqrt(max(0.0f, (1.0f - idotn * idotn)));
-  if (sin_t > 1.0f) {
-    return 1.0f;
+  float sin_t = eta_i / eta_t * half_sqrt(max(0.0, (1.0 - idotn * idotn)));
+  if (sin_t > 1.0) {
+    return 1.0;
   }
-  float cos_t = half_sqrt(max((1.0f - sin_t * sin_t), 0.0f));
+  float cos_t = half_sqrt(max((1.0 - sin_t * sin_t), 0.0));
   float cos_i = fabs(cos_i);
   float r_s =
       ((eta_t * cos_i) - (eta_i * cos_t)) / ((eta_t * cos_i) + (eta_i * cos_t));
@@ -278,6 +278,42 @@ inline float3 randUnitVec(ulong *r) {
 }
 
 uint reduce(uint x, uint N) { return ((ulong)x * (ulong)N) >> 32; }
+
+struct CastResult reflecteval(struct CastResult ref, struct Ray *r,
+                              struct Scene *scene) {
+  float3 hp = r->origin + ref.tval*r->direction;
+  struct CastResult refinal = ref;
+  float afactor = 1.0;
+  refinal.tval = 1024;
+  if (refinal.mat.type == REFLECT || refinal.mat.type == REFLECT_REFRACT) {
+    refinal.tid = -1;
+    refinal.sid = -1;
+    refinal.tval = ref.tval;
+    int depth = 0;
+    while (((refinal.mat.type == REFLECT) || (refinal.mat.type == REFLECT_REFRACT)) && depth < 5 &&
+           (refinal.tval < 1023)) { // set depth to 0 at the first ray
+      if (dot(refinal.normal, -r->direction) < 0) {
+        refinal.normal = -refinal.normal;
+      }
+      float kr = 1.0; // fresnel(r->direction, lnormal, mat.rindex);
+      afactor *= kr * 0.9;
+      depth++;
+      float3 refd =
+          normalize(r->direction - 2.0f * dot(r->direction, refinal.normal) * refinal.normal);
+      r->origin = hp + refd * 0.001f;
+      r->direction = refd;
+      r->inv_dir = 1.0f / refd;
+      refinal = cast(r, scene);
+      hp = r->origin + refinal.tval*r->direction;
+    }
+    if ((refinal.tval > 1023) || refinal.mat.type == REFLECT || refinal.mat.type == REFLECT_REFRACT) {
+      refinal.tid = -1;
+      refinal.sid = -1;
+    }
+  }
+  refinal.attent = afactor;
+  return refinal;
+}
 float3 refract(float3 in, float3 n, float ior) {
   float cosi = clamp(-1.0f, 1.0f, dot(in, n));
   float etai = 1, etat = ior;
@@ -296,6 +332,41 @@ float3 refract(float3 in, float3 n, float ior) {
   } else {
     return eta * in + (eta * cosi - sqrt(k)) * ncopy;
   }
+}
+struct CastResult refracteval(struct CastResult ref, struct Ray *r,
+                              struct Scene *scene) {
+  float3 hp = r->origin + ref.tval*r->direction;
+  struct CastResult refinal = ref;
+  float afactor = 1.0;
+  refinal.tval = 1024;
+  if (refinal.mat.type == REFLECT_REFRACT) {
+    refinal.tid = -1;
+    refinal.sid = -1;
+    refinal.tval = ref.tval;
+    int depth = 0;
+    while ((refinal.mat.type == REFLECT_REFRACT) && depth < 5 &&
+           (refinal.tval < 1023)) { // set depth to 0 at the first ray
+      if (dot(refinal.normal, -r->direction) < 0) {
+        refinal.normal = -refinal.normal;
+      }
+      float kr = 1.0; // fresnel(r->direction, lnormal, mat.rindex);
+      afactor *= kr * 0.8;
+      depth++;
+      float3 refd =
+          refract(r->direction, refinal.normal, refinal.mat.rindex);
+      r->origin = hp + refd * 0.001f;
+      r->direction = refd;
+      r->inv_dir = 1.0f / refd;
+      refinal = cast(r, scene);
+      hp = r->origin + refinal.tval*r->direction;
+    }
+    if ((refinal.tval > 1023) || refinal.mat.type == REFLECT_REFRACT) {
+      refinal.tid = -1;
+      refinal.sid = -1;
+    }
+  }
+  refinal.attent = afactor;
+  return refinal;
 }
 
 float3 shade(struct Ray *r, struct Scene *scene, struct CastResult res) {
@@ -358,7 +429,7 @@ float3 shade(struct Ray *r, struct Scene *scene, struct CastResult res) {
           dt = clamp(dt, 0.0f, 1.0f);
           float att = distance(hp, pt);
           att *= att;
-          att = 1.0f / (1.0f + (0.0162f * att));
+          att = 1.0 / (1.0 + (0.0162 * att));
           // att = 1.0;
           float3 halfAngle = normalize(ll - r->direction);
           diffsample +=
@@ -386,7 +457,7 @@ float3 shade(struct Ray *r, struct Scene *scene, struct CastResult res) {
     float3 l = normalize(lightpos - hp);
     float dt = dot(res.normal, l);
     dt = clamp(dt, 0.0f, 1.0f);
-    float accum = 0.0f;
+    float accum = 0.0;
     struct Ray s;
     s.origin = hp + res.normal * 0.001f;
     s.direction = normalize(lightpos - hp);
@@ -398,7 +469,7 @@ float3 shade(struct Ray *r, struct Scene *scene, struct CastResult res) {
     if (accum > 0.0) {
       float att = distance(s.origin, lightpos);
       att *= att;
-      att = 1.0f / (1.0f + (0.032f * att));
+      att = 1.0 / (1.0 + (0.032 * att));
       lightamt += ((scene->lights[i].color * dt) * accum) * att;
       float3 halfAngle = normalize(l - r->direction);
       float ahalf = acos(dot(halfAngle, res.normal));
@@ -406,8 +477,8 @@ float3 shade(struct Ray *r, struct Scene *scene, struct CastResult res) {
       expn = -(expn * expn);
       float blinn = exp(expn);
       blinn = clamp(blinn, 0.0f, 1.0f);
-      if (dt == 0.0f) {
-        blinn = 0.0f;
+      if (dt == 0.0) {
+        blinn = 0.0;
       }
       speccolor += (blinn * scene->lights[i].color * accum) * att;
     }
@@ -510,7 +581,7 @@ __kernel void _main(__write_only image2d_t img, uint width, uint height,
   float dx = 1.0f / (float)width;
   float dy = 1.0f / (float)height;
   // float y = (float)(get_global_id(0)) / (float)(height);
-  float widthhalves = width / 160;
+  float widthhalves = width / 2;
   for (uint i = widthhalves * (get_global_id(1));
        i < widthhalves * (get_global_id(1) + 1); i++) {
     scene.sr = sr + i * height + get_global_id(0);
@@ -530,45 +601,3 @@ __kernel void _main(__write_only image2d_t img, uint width, uint height,
     write_imagef(img, xy, color);
   }
 }
-
-__kernel void _main(__write_only image2d_t img, uint width, uint height,
-                    uint tricount, uint spherecount, uint lightcount,
-                    __constant struct Triangle *tris,
-                    __constant struct Sphere *spheres,
-                    __constant struct Light *lights, struct CameraConfig camera,
-                    ulong sr, __constant struct AreaLight *arealights,
-                    __constant uint *emittersets, uint alightcount,
-                    __constant float *halton) {
-  struct Scene scene;
-  scene.triangles = tris;
-  scene.spheres = spheres;
-  scene.lights = lights;
-  scene.sphereCount = spherecount;
-  scene.triCount = tricount;
-  scene.lightCount = lightcount;
-  scene.alightCount = alightcount;
-  scene.alights = arealights;
-  scene.emittersets = emittersets;
-  scene.halton = halton;
-  float dx = 1.0f / (float)width;
-  float dy = 1.0f / (float)height;
-  // float y = (float)(get_global_id(0)) / (float)(height);
-  float widthhalves = width / 160;
-  for (uint i = widthhalves * (get_global_id(1));
-       i < widthhalves * (get_global_id(1) + 1); i++) {
-    scene.sr = sr + i * height + get_global_id(0);
-    float y = get_global_id(0) / (float)height;
-    float x = (float)(i) / (float)(width);
-    float3 camright = cross(camera.up, camera.lookat) * ((float)width / height);
-    x = x - 0.5f;
-    y = y - 0.5f;
-    struct Ray r;
-    r.origin = camera.center;
-    r.direction =
-        normalize(camright * x + (camera.up * y) + camera.lookat /* + noise*/);
-    r.inv_dir = 1.0f / r.direction;
-    float4 color = pow(trace(&r, &scene), 1 / 2.2);
-    int2 xy = {/*(int)(*/ i /* + (nvx/8192.0)) % width*/,
-               /*(int)(*/ get_global_id(0) /* + (nvz/8192.0)) % height*/};
-    write_imagef(img, xy, color);
-  }

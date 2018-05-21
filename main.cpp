@@ -331,7 +331,7 @@ void DrawFrameTest(Scene *t, Framebuffer &fb) {
     glEnable(GL_TEXTURE_2D);
 
     glBindTexture(GL_TEXTURE_2D, fb.textureid);
-    if(/*glfwGetTime() > 8.0*/ true) {
+    if(currentbackend == OpenCL) {
         glBegin(GL_QUADS);
         glTexCoord2f(0, 0); glVertex3f(0, 0, 0);
         glTexCoord2f(0, 1); glVertex3f(0, 100, 0);
@@ -365,7 +365,7 @@ void DrawFrameTest(Scene *t, Framebuffer &fb) {
     glDeleteTextures(1, &fb.textureid);
     //glClear(GL_COLOR_BUFFER_BIT);
     glRasterPos2i(0,0);
-    //glDrawPixels(fb.x, fb.y, GL_RGB, GL_UNSIGNED_BYTE, fb.fb);
+    glDrawPixels(fb.x, fb.y, GL_RGB, GL_UNSIGNED_BYTE, fb.fb);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);

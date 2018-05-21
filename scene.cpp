@@ -35,7 +35,7 @@ static glm::vec3 quadlerp(const glm::vec3 &v1,
 Scene::Scene(RenderBackend backend, size_t nthreads,
              std::function<int(Scene*, Framebuffer&)> prep,
              std::function<void(Scene*, Framebuffer&)> draw) : pool(nthreads), backend(backend),
-                                                               prepframe(prep), drawframe(draw) {
+    prepframe(prep), drawframe(draw) {
     if(backend == Embree)
         scene = rtcNewScene(device);
     if(backend == OpenCL) {
@@ -612,7 +612,9 @@ void Scene::render(Framebuffer &fb) {
             clFinish(queue);
             clReleaseMemObject(b1);
             clReleaseMemObject(b2);
-            clReleaseMemObject(b3);
+            if(lights.size() > 0) {
+                clReleaseMemObject(b3);
+            }
             clReleaseMemObject(b4);
             clReleaseMemObject(b5);
             clReleaseMemObject(b6);
@@ -624,8 +626,19 @@ void Scene::render(Framebuffer &fb) {
             drawframe(this, fb);
             continue;
         }
+        if(backend != OpenCL) {
+            if(prepframe(this, fb))
+                return;
+        }
+#pragma omp parallel for
         for(size_t i = 0; i < 8; i++) {
             switch(backend) {
+            case OpenCL:
+                break;
+            case CUDA:
+                break;
+            case Phi:
+                break;
             case Rendertape:
                 RenderSliceTape(ystep*i, ystep*(i+1), fb);
                 break;
@@ -633,6 +646,9 @@ void Scene::render(Framebuffer &fb) {
                 RenderSliceEmbree(ystep*i, ystep*(i+1), fb);
                 break;
             }
+        }
+        if(backend != OpenCL) {
+            drawframe(this, fb);
         }
     }
 }

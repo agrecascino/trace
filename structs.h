@@ -116,26 +116,13 @@ struct Intersection {
     Material mat;
 };
 
-class DeviceIntersectable {
-public:
-    virtual __device__ glm::vec3 getNormal(Ray &r, float &t) { return glm::vec3(); }
-    virtual __device__ Intersection intersect(Ray &r) {
-        return Intersection();
-    }
-};
-
 class Intersectable {
 public:
     virtual Material getMaterial() { return Material(); }
     virtual glm::vec3 getNormal(Ray &r, float &t) { return glm::vec3(); }
-    virtual Intersection intersect(Ray &r) {
-        return Intersection();
-    }
+    virtual Intersection intersect(Ray &r) { return Intersection(); }
     virtual void setTransform(glm::mat4x4 m) { transform = m; }
     virtual glm::mat4x4 getTransform() const { return transform; }
-    virtual DeviceIntersectable* returnDeviceIntersectable() {
-        return new DeviceIntersectable;
-    }
 protected:
     glm::mat4x4 transform = glm::mat4x4(1.0f);
 };

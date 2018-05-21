@@ -54,6 +54,7 @@ public:
 
     ~Scene();
 private:
+    RenderBackend backend;
     std::function<int(Scene*, Framebuffer&)> prepframe;
     std::function<void(Scene*, Framebuffer&)> drawframe;
     SphereCL *spheres_buf = NULL;
@@ -66,7 +67,6 @@ private:
     cl_command_queue queue;
     cl_kernel kernel;
     cl_mem buffer = NULL, cl_tris = NULL, cl_spheres = NULL, cl_lights = NULL, cl_alights = NULL, cl_emittersets = NULL, cl_halton = NULL;
-    RenderBackend backend;
     RTCGeometry *geometry = NULL;
     RTCDevice device = rtcNewDevice("verbose=1");
     RTCScene scene;

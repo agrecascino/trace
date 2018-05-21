@@ -7,7 +7,7 @@ Triangle::Triangle(glm::vec3 pts[3], Material mat) : mat(mat) {
     normal = glm::normalize(glm::cross(u, v));
 }
 
-glm::vec3 Triangle::getNormal(Ray &r, float &t) {
+glm::vec3 Triangle::getNormal(Ray&, float&) {
     return normal;
 }
 
