@@ -6,9 +6,10 @@ Sphere::Sphere(glm::vec3 origin, float radius, Material mat) : radius(radius), m
     transform = glm::translate(transform, origin);
 }
 glm::vec3 Sphere::getNormal(Ray &ray, float &t) {
-    glm::vec4 origin4 = glm::column(transform, 3);
-    glm::vec3 origin(origin4.x, origin4.y, origin4.z);
-    return ((origin + (t*ray.direction) - origin)) / radius;
+    glm::vec3 q = ray.origin + t*ray.direction;
+    glm::vec4 origin = transform * glm::vec4(0,0,0,1.0f);
+    glm::vec3 originv3 = origin;
+    return glm::normalize(q - originv3);
 }
 
 Material Sphere::getMaterial() {
@@ -38,6 +39,7 @@ Intersection Sphere::intersect(Ray &ray) {
     ret.normal = i/radius;
     //ret.normal = getNormal(ray, ret.t);
     ret.mat = mat;
+    ret.obj = this;
     return ret;
 }
 

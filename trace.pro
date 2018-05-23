@@ -3,9 +3,8 @@ CONFIG += console c++11
 CONFIG -= app_bundle
 CONFIG -= qt
 
-LIBS += -lGLEW -lglfw -lGL -lgomp -lGLU -lpthread -lembree3 -lglut -lOpenCL -lportaudio -ldrm
-
-QMAKE_CXXFLAGS = -fopenmp -std=gnu++14 -ffast-math -O3 -pthread
+LIBS += -lGLEW -lglfw -lGL -lGLU -lpthread -lembree3 -lglut -lOpenCL -lportaudio -ldrm -lgomp
+QMAKE_CXXFLAGS = -std=gnu++14 -ffast-math -O0 -pthread -fopenmp -march=native
 
 HEADERS += \
     ctpl.h \

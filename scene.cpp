@@ -9,6 +9,7 @@
 #include <GL/glx.h>
 #include "halton.hpp"
 #include "sobol.hpp"
+#include <omp.h>
 
 static cl_int cl_err = 0;
 static void stateok() {
@@ -316,7 +317,24 @@ void Scene::RegenerateObjectCache() {
             }
         }
         delete[] geometry;
+        rtcSetSceneBuildQuality(scene, RTC_BUILD_QUALITY_HIGH);
         rtcCommitScene(scene);
+        alightcache.clear();
+        for(auto &kv : intersectables) {
+            if(kv.second->getMaterial().emits > 0.001f) {
+                AreaLightType t;
+                unsigned long c = typeid(*kv.second).hash_code();
+                if(c == typeid(Triangle).hash_code()) {
+                    t = TRIANGLELIST;
+                } else {
+                    t = SPHERELIST;
+                }
+                if(alightcache[kv.second->getMaterial().alightid].ids.size() == 0)
+                    alightcache[kv.second->getMaterial().alightid].type = t;
+                if(alightcache[kv.second->getMaterial().alightid].type == t)
+                    alightcache[kv.second->getMaterial().alightid].ids.push_back(kv.first);
+            }
+        }
     } else if(backend == OpenCL) {
         TranslateAndRotate();
         GPUUploadGeometry();
@@ -360,6 +378,7 @@ void Scene::embreecast(RTCRayHit16 *rhit, Intersection *hit, int *valid) {
             Intersectable *a = (Intersectable*)rtcGetGeometryUserData(geo);
             hit[i].t = rhit->ray.tfar[i];
             hit[i].mat = a->getMaterial();
+            hit[i].obj = a;
             Ray r;
             r.direction = glm::vec3(rhit->ray.dir_x[i], rhit->ray.dir_y[i], rhit->ray.dir_z[i]);
             r.origin = glm::vec3(rhit->ray.org_x[i], rhit->ray.org_y[i], rhit->ray.org_z[i]);
@@ -380,7 +399,8 @@ void Scene::RenderSliceTape(size_t yfirst, size_t ylast, Framebuffer &fb) {
     for(size_t y = yfirst; y < ylast; y++) {
         for(size_t x = 0; x < fb.x;) {
             uint32_t np = fb.x-x;
-            Ray r[(np > 7) ? 8 : 1];
+            const int numleft = (np > 7) ? 8 : 1;
+            Ray r[numleft];
 #pragma omp simd
             for(int i = 0; i < ((np > 7) ? 8: 1); i++) {
                 float nx = ((float)(x+i) / fb.x) - 0.5;
@@ -389,17 +409,17 @@ void Scene::RenderSliceTape(size_t yfirst, size_t ylast, Framebuffer &fb) {
                 r[i].direction = (correctedright * nx) + (-localup * ny) + config.lookat;
                 r[i].direction = glm::normalize(r[i].direction);
             }
-            Intersection hit[(np > 7) ? 8 : 1];
-            tapecast(r, hit, (np > 7) ? 8 : 1);
-            for(int i = 0; i < ((np > 7) ? 8 : 1); i++) {
+            Intersection hit[numleft];
+            tapecast(r, hit, numleft);
+            for(int i = 0; i < (numleft); i++) {
                 if(!hit[i].intersected) {
                     fb.fb[((fb.x * (y)) + (x+i))*3] = 100;
                     fb.fb[((fb.x * (y)) + (x+i))*3 + 1] = 149;
                     fb.fb[((fb.x * (y)) + (x+i))*3 + 2] = 237;
                 }
             }
-            glm::vec3 fcolor[(np > 7) ? 8 : 1];
-            for(int i = 0; i < ((np > 7) ? 8 : 1); i++) {
+            glm::vec3 fcolor[numleft];
+            for(int i = 0; i < (numleft); i++) {
                 if(!hit[i].intersected)
                     continue;
                 for(Light *light : lights) {
@@ -420,24 +440,29 @@ void Scene::RenderSliceTape(size_t yfirst, size_t ylast, Framebuffer &fb) {
                     }
                 }
             }
-            for(int i = 0; i < ((np > 7) ? 8 : 1); i++) {
+            for(int i = 0; i < (numleft); i++) {
                 if(!hit[i].intersected)
                     continue;
                 fb.fb[((fb.x * (y)) + (x+i))*3] = fminf(fmaxf(0,fcolor[i].x*255),255);
                 fb.fb[((fb.x * (y)) + (x+i))*3 + 1] = fminf(fmaxf(0,fcolor[i].y*255),255);
                 fb.fb[((fb.x * (y)) + (x+i))*3 + 2] = fminf(fmaxf(0,fcolor[i].z*255),255);
             }
-            x += (np > 7) ? 8 : 1;
+            x += numleft;
         }
     }
 }
 
-void inline Scene::GenerateScreenVectors(RTCRayHit16 *r, glm::vec3 correctedright, glm::vec3 localup, size_t xf, size_t yf, size_t xl, size_t yl, int numrays, int *valid) {
+void Scene::GenerateScreenVectors(RTCRayHit16 *r, glm::vec3 correctedright, glm::vec3 localup, size_t xf, size_t yf, size_t xl, size_t yl, int numrays, int *valid) {
+//    glm::vec3 v1 = -correctedright*0.5f + -localup *0.5f;
+//    glm::vec3 v2 = -correctedright*0.5f + localup *0.5f;
+//    glm::vec3 v3 = correctedright*0.5f + -localup *0.5f;
+//    glm::vec3 v4 = correctedright*0.5f + localup *0.5f;
     for(int i = 0; i < numrays; i++) {
-        float nx = ((float)(xf+i) / xl) - 0.5;
-        float ny = ((float)yf / yl) - 0.5;
+        float nx = ((float)xf+i)/xl  - 0.5f;
+        float ny = ((float)yf)/yl - 0.5f;
         glm::vec3 origin = config.center;
         glm::vec3 direction = (correctedright * nx) + (-localup * ny) + config.lookat;
+        //direction = quadlerp(v1,v2,v3,v4, nx, ny);
         direction = glm::normalize(direction);
         r->ray.dir_x[i] = direction.x;
         r->ray.dir_y[i] = direction.y;
@@ -452,6 +477,142 @@ void inline Scene::GenerateScreenVectors(RTCRayHit16 *r, glm::vec3 correctedrigh
     }
 }
 
+static inline uint32_t fastrange32(uint32_t word, uint32_t p) {
+    return (uint32_t)(((uint64_t)word * (uint64_t)p) >> 32);
+}
+
+void Scene::shade(Intersection &hit, glm::vec3 &fcolor, Ray &ro) {
+    if(!hit.intersected) {
+        fcolor = glm::vec3(pow(100.0f/255.0f, 2.2f), pow(149.0f/255.0f, 2.2f), pow(237.0f/255.0f, 2.2f));
+        return;
+    } else {
+        fcolor = glm::vec3(1.0, 1.0, 1.0);
+        return;
+    }
+    fcolor += hit.mat.emits * hit.mat.color;
+    glm::vec3 normal = hit.normal;
+    glm::vec3 dir = ro.direction;
+    if(glm::dot(normal, -dir) < 0) {
+        normal = -normal;
+    }
+    for(Light *light : lights) {
+        glm::vec3 lightlocation = glm::vec3(light->transform[3][0], light->transform[3][1], light->transform[3][2]);
+        glm::vec3 l = lightlocation - hit.point;
+        glm::vec3 n = hit.normal;
+        glm::vec3 rdirect = dir;
+        if(glm::dot(n, -rdirect) < 0) {
+            n = -n;
+        }
+        float dt = glm::dot(glm::normalize(l), n);
+        RTCRayHit16 s;
+        int valid[16];
+        memset(valid, 0, 16);
+        valid[0] = -1;
+        glm::vec3 origin = glm::vec3(hit.point) + (n * 0.001f);
+        glm::vec3 direction = glm::normalize((lightlocation - hit.point));
+        Ray r;
+        r.origin = origin;
+        r.direction = direction;
+        Intersection s_hit;
+        //tapecast(&r, &s_hit, 1);
+        if((!s_hit.intersected) || (glm::distance(s_hit.point, origin) > glm::distance(origin, lightlocation))) {
+            fcolor += ((light->color*dt)* hit.mat.color);
+        }
+    }
+
+    size_t raypktbuf = 0;
+    struct RandData {
+        Triangle *tri;
+        glm::vec3 pt;
+        glm::vec3 normal;
+        size_t id = 0;
+    };
+    std::vector<RandData> data;
+    std::vector<Ray> rays;
+    std::vector<Intersection> intersections;
+    struct RTCRayHit16 packet;
+    int valid[16];
+    memset(valid, 0, 16*sizeof(int));
+    for(auto &kv : alightcache) {
+        AreaLight alight = kv.second;
+        uint32_t item = fastrange32(fast_rand(), alight.ids.size());
+        uint64_t id = alight.ids[item];
+        Intersectable *object = intersectables[id];
+        if(alight.type == TRIANGLELIST) {
+            Triangle *tri = (Triangle*)object;
+            float *verts = tri->getVertexBuffer();
+            glm::vec3 v0 = glm::vec3(verts[0], verts[1], verts[2]);
+            glm::vec3 v1 = glm::vec3(verts[3], verts[4], verts[5]);
+            glm::vec3 v2 = glm::vec3(verts[6], verts[7], verts[8]);
+            glm::vec3 e1 = v1 - v0;
+            glm::vec3 e2 = v2 - v0;
+            const float val = (1/255.0f);
+            float a = (fast_rand() & 0xFF)*val;
+            float b = (fast_rand() & 0xFF)*val;
+            if(a+b >= 1.0f) {
+                a = 1.0f-a;
+                b = 1.0f-b;
+            }
+            glm::vec3 pt = v0 + a*e1 + b*e2;
+            Ray r;
+            glm::vec3 lnormal = tri->getNormal(r, a);
+            r.origin = pt + lnormal*0.001f;
+            r.direction = glm::normalize(hit.point - r.origin);
+            if ((dot(normal, r.direction) > 0.0f) || (dot(lnormal, r.direction) < 0.001f)) {
+              continue;
+            }
+            rays.push_back(r);
+            RandData d;
+            d.normal = lnormal;
+            d.pt = pt;
+            d.tri = tri;
+            data.push_back(d);
+            intersections.push_back(Intersection());
+            data.back().id = raypktbuf;
+            packet.ray.dir_x[raypktbuf] = r.direction.x;
+            packet.ray.dir_y[raypktbuf] = r.direction.y;
+            packet.ray.dir_z[raypktbuf] = r.direction.z;
+            packet.ray.org_x[raypktbuf] = r.origin.x;
+            packet.ray.org_y[raypktbuf] = r.origin.y;
+            packet.ray.org_z[raypktbuf] = r.origin.z;
+            packet.ray.time[raypktbuf] = 0.0;
+            packet.ray.tnear[raypktbuf] = 0.0f;
+            packet.ray.tfar[raypktbuf] = 65535.0f;
+            valid[raypktbuf] = -1;
+            raypktbuf++;
+            //Intersection s_hit;
+            //tapecast(&r, &s_hit, 1);
+            if(raypktbuf > 15) {
+                embreecast(&packet, intersections.data(), valid);
+                raypktbuf = raypktbuf - 16;
+                memset(valid, 0, 16*sizeof(int));
+                for(size_t i = 0; i < 16; i++) {
+                    if(glm::distance(intersections[i].point, hit.point) < 0.01f && (intersections[i].obj == hit.obj)){
+                        //fcolor += glm::vec3(1.0f, 1.0f, 1.0f);
+                        float dist = glm::distance(intersections[i].point, data[i].pt);
+                        float attent = 1.0f / (1.0f + (0.0162f)*(dist*dist));
+                        float dt = glm::dot(normal, glm::normalize(data[i].pt - intersections[i].point));
+                        fcolor += data[i].tri->getMaterial().color * dot(intersections[i].normal, rays[i].direction) * dt * attent;
+                    }
+                }
+            }
+        }
+    }
+    if(raypktbuf > 0) {
+        embreecast(&packet, intersections.data(), valid);
+    }
+    for(size_t i = 0; i < raypktbuf; i++) {
+        if(glm::distance(intersections[i].point, hit.point) < 0.01f && (intersections[i].obj == hit.obj)){
+            //fcolor += glm::vec3(1.0f, 1.0f, 1.0f);
+            float dist = glm::distance(intersections[i].point, data[i].pt);
+            float attent = 1.0f / (1.0f + (0.0162f)*(dist*dist));
+            float dt = glm::dot(normal, glm::normalize(data[i].pt - intersections[i].point));
+            fcolor += data[i].tri->getMaterial().color * dot(intersections[i].normal, rays[i].direction) * dt * attent;
+        }
+    }
+    fcolor *= hit.mat.color;
+}
+
 void Scene::RenderSliceEmbree(size_t yfirst, size_t ylast, Framebuffer &fb) {
     glm::vec3 camright = glm::cross(config.up,config.lookat);
     glm::vec3 localup = glm::cross(camright, config.lookat);
@@ -462,62 +623,21 @@ void Scene::RenderSliceEmbree(size_t yfirst, size_t ylast, Framebuffer &fb) {
             uint32_t np = std::min((size_t)16, fb.x-x);
             RTCRayHit16 r;
             int valid[16];
-            memset(valid, 0, 16);
+            memset(valid, 0, 16*sizeof(int));
             GenerateScreenVectors(&r, correctedright, localup, x, y, fb.x, fb.y, np, valid);
             Intersection hit[np];
             embreecast(&r, hit, valid);
-            for(size_t i = 0; i < np; i++) {
-                if(!hit[i].intersected) {
-                    fb.fb[((fb.x * (y)) + (x+i))*3] = 100;
-                    fb.fb[((fb.x * (y)) + (x+i))*3 + 1] = 149;
-                    fb.fb[((fb.x * (y)) + (x+i))*3 + 2] = 237;
-                }
-            }
             glm::vec3 fcolor[np];
             for(size_t i = 0; i < np; i++) {
-                if(!hit[i].intersected)
-                    continue;
-                for(Light *light : lights) {
-                    glm::vec3 lightlocation = glm::vec3(light->transform[3][0], light->transform[3][1], light->transform[3][2]);
-                    glm::vec3 l = lightlocation - hit[i].point;
-                    glm::vec3 n = hit[i].normal;
-                    glm::vec3 rdirect = glm::vec3(r.ray.dir_x[i], r.ray.dir_y[i], r.ray.dir_z[i]);
-                    if(glm::dot(n, -rdirect) < 0) {
-                        n = -n;
-                    }
-                    float dt = glm::dot(glm::normalize(l), n);
-                    RTCRayHit16 s;
-                    int valid[16];
-                    memset(valid, 0, 16);
-                    valid[0] = -1;
-                    glm::vec3 origin = glm::vec3(hit[i].point) + (n * 0.001f);
-                    glm::vec3 direction = glm::normalize((lightlocation - hit[i].point));
-                    //                    s.ray.dir_x[0] = direction.x;
-                    //                    s.ray.dir_y[0] = direction.y;
-                    //                    s.ray.dir_z[0] = direction.z;
-                    //                    s.ray.org_x[0] = origin.x;
-                    //                    s.ray.org_y[0] = origin.y;
-                    //                    s.ray.org_z[0] = origin.z;
-                    //                    s.ray.tnear[0] = 0.0f;
-                    //                    s.ray.tfar[0] = 65535.0f;
-                    Ray r;
-                    r.origin = origin;
-                    r.direction = direction;
-                    Intersection s_hit;
-                    //embreecast(&s, &s_hit, valid)cl_halton;
-                    tapecast(&r, &s_hit, 1);
-                    if((!s_hit.intersected) || (glm::distance(s_hit.point, origin) > glm::distance(origin, lightlocation))) {
-                        fcolor[i] += ((light->color*dt)* hit[i].mat.color);
-                    }
-                }
+                Ray ro;
+                ro.origin = glm::vec3(r.ray.org_x[i], r.ray.org_y[i], r.ray.org_z[i]);
+                ro.direction = glm::vec3(r.ray.dir_x[i], r.ray.dir_y[i], r.ray.dir_z[i]);
+                shade(hit[i], fcolor[i], ro);
             }
-
             for(size_t i = 0; i < np; i++) {
-                if(!hit[i].intersected)
-                    continue;
-                fb.fb[((fb.x * (y)) + (x+i))*3] = fminf(fmaxf(0,fcolor[i].x*255),255);
-                fb.fb[((fb.x * (y)) + (x+i))*3 + 1] = fminf(fmaxf(0,fcolor[i].y*255),255);
-                fb.fb[((fb.x * (y)) + (x+i))*3 + 2] = fminf(fmaxf(0,fcolor[i].z*255),255);
+                fb.fb[((fb.x * (y)) + (x+i))*3] = fminf(fmaxf(0, pow(fcolor[i].x, 1.0f / 2.2f)*255),255);
+                fb.fb[((fb.x * (y)) + (x+i))*3 + 1] = fminf(fmaxf(0, pow(fcolor[i].y, 1.0f / 2.2f)*255),255);
+                fb.fb[((fb.x * (y)) + (x+i))*3 + 2] = fminf(fmaxf(0, pow(fcolor[i].z, 1.0f / 2.2f)*255),255);
             }
             x += np;
         }
@@ -630,7 +750,10 @@ void Scene::render(Framebuffer &fb) {
             if(prepframe(this, fb))
                 return;
         }
-#pragma omp parallel for
+        if(backend == Embree) {
+            RegenerateObjectCache();
+        }
+#pragma omp parallel for num_threads(4)
         for(size_t i = 0; i < 8; i++) {
             switch(backend) {
             case OpenCL:

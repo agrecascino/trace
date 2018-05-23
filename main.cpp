@@ -55,7 +55,7 @@ bool mlocked = true;
 timeval past, present;
 CameraConfig cfg;
 float lasttime;
-RenderBackend currentbackend = OpenCL;
+RenderBackend currentbackend = Embree;
 float s3velocity = 0.0;
 float s3y = 3.0;
 float dtextpos = 96;

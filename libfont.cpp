@@ -284,7 +284,6 @@ uint8_t *drawText(std::string s, glm::vec4 color) {
     uint8_t *tex = new uint8_t[x*y*4];
     memset(tex, 0, x*y*4);
     uint32_t xc = 0;
-    std::cout << sizeof(Fixed9x15_Character_000) << std::endl;
     for(char c : s) {
         const GLubyte *character = Fixed9x15_Character_Map[c] + 1;
         for(size_t yline = 0; yline < y; yline++) {

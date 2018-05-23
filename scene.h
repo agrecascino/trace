@@ -33,6 +33,8 @@ public:
 
     glm::vec3 GenerateNoiseVector();
 
+    void shade(Intersection &hit, glm::vec3 &fcolor, Ray &ro);
+
     void tapecast(Ray *r, Intersection *hit, unsigned int numrays);
 
     void embreecast(RTCRayHit16 *rhit, Intersection *hit, int *valid) ;
@@ -79,6 +81,7 @@ private:
     unsigned long alightcount = 0;
     unsigned long emittersetscount = 0;
     std::vector<Light*> lights;
+    std::unordered_map<uint64_t, AreaLight> alightcache;
     ctpl::thread_pool pool;
 };
 

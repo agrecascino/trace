@@ -24,7 +24,6 @@ struct AreaLightCL {
     AreaLightType type;
 };
 
-
 struct CameraConfigCL {
     cl_float3 center;
     cl_float3 lookat;
@@ -102,6 +101,11 @@ struct Light {
     glm::mat4x4 transform;
     glm::vec3 color;
     glm::vec2 brightness;
+};
+
+struct AreaLight {
+    AreaLightType type;
+    std::vector<size_t> ids;
 };
 
 class Intersectable;
