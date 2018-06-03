@@ -30,6 +30,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <player.h>
 #include "libfont.h"
+#include "obj.h"
+#include <omp.h>
+#include <stack>
 extern "C" {
     #include "qdbmp.h"
 }
@@ -77,6 +80,7 @@ ModulePlayer player(f);
 
 std::vector<Text> texts;
 std::vector<Sphere*> funspheres;
+std::vector<Triangle*> teapot;
 
 void playmodule() {
     //player.playModule();
@@ -189,53 +193,87 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         triE4 = new Triangle(etris4, greenemits);
         triER = new Triangle(etrisr, redemits);
         triER2 = new Triangle(etrisr2, redemits);
+        glm::mat4x4 a;
+        a = glm::translate(a, glm::vec3(7.0f, 120.0f, -211.0f));
+        glm::vec3 teapotlight[3];
+        glm::vec3 teapotlight2[3];
+        for(int i = 0; i < 3; i++) {
+            glm::vec4 vector = glm::vec4(etris3[i], 1.0f);
+            vector = a * vector;
+            glm::vec3 v3(vector.x, vector.y, vector.z);
+            teapotlight[i] = v3;
+        }
+        for(int i = 0; i < 3; i++) {
+            glm::vec4 vector = glm::vec4(etris4[i], 1.0f);
+            vector = a * vector;
+            glm::vec3 v3(vector.x, vector.y, vector.z);
+            teapotlight2[i] = v3;
+        }
+        Triangle *tripot = new Triangle(teapotlight, greenemits);
+        Triangle *tripot2 = new Triangle(teapotlight2, greenemits);
+//        man->AddObject(tripot);
+//        man->AddObject(tripot2);
         s = new Sphere(glm::vec3(0.0, 0.0, 0.0), 2, b);
         Sphere *s2 = new Sphere(glm::vec3(10.0, 0.0, 0.0), 2, g);
         s3 = new Sphere(glm::vec3(10.0, 3.0, 10.0), 4, r);
         Light *l = new Light(glm::vec3(-10.0, 8.0, -10.0), glm::vec3(0.0, 0.0, 1.0), glm::vec2(1.0, 0.20));
         Light *l2 = new Light(glm::vec3(10, 20, 10), glm::vec3(1.0, 1.0, 1.0), glm::vec2(1.0, 0.20));
         Sphere *golfball = new Sphere(glm::vec3(-5.5, 1, 2.0), 2, white_reflective);
-//        for(int i = 0; i < 10; i++) {
-//            Material gdif;
-//            gdif.type = DIFFUSE_GLOSS;
-//            gdif.diffc = 0.9;
-//            gdif.specc = 0.1;
-//            gdif.specexp = 0.1;
-//            gdif.color = glm::vec3(0.0, 1.0, 0.0);
+//        man->AddObject(s);
+//        man->AddObject(s2);
+//        man->AddObject(s3);
+//        man->AddObject(tri);
+//        man->AddObject(tri2);
+//        man->AddObject(triR1);
+//        man->AddObject(triR2);
+//        man->AddObject(triE);
+//        man->AddObject(triE2);
+//        man->AddObject(triE3);
+//        man->AddObject(triE4);
+//        man->AddObject(triER);
+//        man->AddObject(triER2);
+//        man->AddObject(golfball);
+        objl::Loader loader;
+        loader.LoadFile("e1m1.obj");
+        std::stack<glm::vec3> vertices;
+        std::vector<unsigned int> &v = loader.LoadedMeshes[0].Indices;
+        objl::Vertex v0 = loader.LoadedMeshes[0].Vertices[v[0]];
+        glm::vec3 minimum = glm::vec3(v0.Position.X, v0.Position.Y, v0.Position.Z);
+        glm::vec3 maximum = minimum;
+        for(size_t m = 0; m < loader.LoadedMeshes.size(); m++) {
+            for(size_t i = 0; i < loader.LoadedMeshes[m].Indices.size(); i++) {
+                v = loader.LoadedMeshes[m].Indices;
+                objl::Vertex a = loader.LoadedMeshes[m].Vertices[v[i]];
+                minimum.x = std::min(a.Position.Y, minimum.x);
+                minimum.y = std::min(a.Position.Z, minimum.y);
+                minimum.z = std::min(a.Position.X, minimum.z);
+                maximum.x = std::max(a.Position.Y, maximum.x);
+                maximum.y = std::max(a.Position.Z, maximum.y);
+                maximum.z = std::max(a.Position.X, maximum.z);
 
-//            Sphere *gs = new Sphere(glm::vec3(0, 5, 25), 2, gdif);
-//            funspheres.push_back(gs);
-//            man->AddObject(gs);
-//        }
-//        for(int i = 0; i < 10; i++) {
-//            Material gdif;
-//            gdif.type = DIFFUSE_GLOSS;
-//            gdif.diffc = 0.9;
-//            gdif.specc = 0.1;
-//            gdif.specexp = 0.1;
-//            gdif.color = glm::vec3(0.0, 1.0, 0.0);
-//            auto floatrand = [&]() {
-//                return (man->fast_rand()/16384.0)-1.0;
-//            };
-
-//            glm::vec3 trisRg[3] = {glm::vec3(floatrand()*100.0, floatrand()*100.0, floatrand()*100.0), glm::vec3(floatrand()*100.0, floatrand()*100.0, floatrand()*100.0), glm::vec3(floatrand()*100.0, floatrand()*100.0, floatrand()*100.0)};
-//            Triangle *triRg = new Triangle(trisRg, gdif);
-//            man->AddObject(triRg);
-//        }
-        man->AddObject(s);
-        man->AddObject(s2);
-        man->AddObject(s3);
-        man->AddObject(tri);
-        man->AddObject(tri2);
-        man->AddObject(triR1);
-        man->AddObject(triR2);
-        man->AddObject(triE);
-        man->AddObject(triE2);
-        man->AddObject(triE3);
-        man->AddObject(triE4);
-        man->AddObject(triER);
-        man->AddObject(triER2);
-        man->AddObject(golfball);
+                vertices.push(glm::vec3(a.Position.Y, a.Position.Z, a.Position.X));
+            }
+        }
+        glm::vec3 origin = (maximum + minimum)/2.0f;
+        std::cout << StringifyVec3(origin);
+        while(!vertices.empty()) {
+            glm::vec3 v1 = vertices.top(); vertices.pop();
+            glm::vec3 v2 = vertices.top(); vertices.pop();
+            glm::vec3 v3 = vertices.top(); vertices.pop();
+            glm::vec3 vec[3];
+            vec[0] = v1 - origin;
+            vec[1] = v2 - origin;
+            vec[2] = v3 - origin;
+            Material mat;
+            mat.color = glm::vec3(1.0, 1.0, 1.0);
+            mat.diffc = 1.0;
+            mat.specc = 0.0;
+            mat.emits = 0.0;
+            mat.type = DIFFUSE_GLOSS;
+            Triangle *t = new Triangle(vec, mat);
+            man->AddObject(t);
+            teapot.push_back(t);
+        }
         //        for(int i = 0; i < 20; i++) {
         //            man->AddObject(triR1);
         //            man->AddObject(triR2);
@@ -255,17 +293,16 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         glPixelStorei(GL_UNPACK_ALIGNMENT, 8);
     }
     float time = glfwGetTime();
-//    for(int i = 0; i < 10; i++) {
-//        glm::mat4x4 a = funspheres[i]->getTransform();
-//        a[3][1] = 5 + 5*sin(time + i*0.2 );
-//        a[3][0] = 20*sin(-1.6 + time + 0.2*i);
-//        a[3][2] = 25*sin( 0.5 + time + i*0.4);
-//        funspheres[i]->setTransform(a);
-//    }
     if(glfwWindowShouldClose(window))
         return -1;
     float tdiff = (glfwGetTime() - lasttime)*32;
     lasttime = glfwGetTime();
+//    for(Triangle *tri : teapot) {
+//        glm::mat4x4 rot(1.0f);
+//        rot = glm::translate(rot, glm::vec3(0.013815 + ((man->fast_rand() & 0xFF)- 127.5)/31, 82.472908 + ((man->fast_rand() & 0xFF)- 127.5)/31, -205.301910 + ((man->fast_rand() & 0xFF)- 127.5)/31));
+//        rot = glm::rotate(rot, (float)glfwGetTime(), glm::vec3(0.8, 0.9f, 0.7f));
+//        tri->setTransform(rot);
+//    }
     glm::mat4x4 mat;
     mat = glm::translate(mat, glm::vec3(sin(glfwGetTime()/2.0)*20, 0.0, cos(glfwGetTime()/2.0)*20));
     s->setTransform(mat);
@@ -288,17 +325,18 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     cfg.lookat = glm::vec3(cos(vertical) * sin(horizontal), sin(vertical), cos(horizontal) * cos(vertical));
     glm::vec3 right = glm::vec3(sin(horizontal - 3.14f / 2.0f) * cos(rotangle), sin(rotangle), cos(horizontal - 3.14f / 2.0f) * cos(rotangle));
     cfg.up = glm::cross(right, cfg.lookat);
+    float speedup = 4.0f;
     if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-        cfg.center += cfg.lookat*tdiff;
+        cfg.center += cfg.lookat*tdiff*speedup;
     }
     if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-        cfg.center -= cfg.lookat*tdiff;
+        cfg.center -= cfg.lookat*tdiff*speedup;
     }
     if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-        cfg.center += right*tdiff;
+        cfg.center += right*tdiff*speedup;
     }
     if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-        cfg.center -= right*tdiff;
+        cfg.center -= right*tdiff*speedup;
     }
     if(glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
         rotangle -= (1/90.0f) * (3.14/2.0f) * tdiff;
@@ -405,6 +443,9 @@ void DrawFrameTest(Scene *t, Framebuffer &fb) {
     glPopMatrix();
     glMatrixMode(GL_MODELVIEW);
     glPopMatrix();
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glRasterPos2i(1, 3);
+    glutBitmapString(GLUT_BITMAP_HELVETICA_12, (unsigned char*)std::string("Currently at :" + StringifyVec3(cfg.center)).c_str());
     glDisable(GL_TEXTURE_2D);
     glfwSwapBuffers(window);
     glfwPollEvents();
@@ -425,13 +466,13 @@ int main(int argc, char **argv) {
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
     glfwInit();
-    window = glfwCreateWindow(1280, 720, "t", NULL, NULL);
+    window = glfwCreateWindow(1600, 900, "t", NULL, NULL);
     glfwMakeContextCurrent(window);
     glewInit();
     Scene man(currentbackend, 4, PrepFrameTest, DrawFrameTest);
     Framebuffer fb;
-    fb.x = 1280;
-    fb.y = 720;
+    fb.x = 1600;
+    fb.y = 900;
     fb.fb = (uint8_t*)malloc(fb.x*fb.y*3);
 
     //cudaDeviceSynchronize();

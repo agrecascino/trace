@@ -293,8 +293,12 @@ void Scene::RegenerateObjectCache() {
                 geometry[i] = rtcNewGeometry(device, RTC_GEOMETRY_TYPE_TRIANGLE);
                 float *buffer = (float*)rtcSetNewGeometryBuffer(geometry[i], RTC_BUFFER_TYPE_VERTEX, 0, RTC_FORMAT_FLOAT3, sizeof(glm::vec3), 3);
                 float *vert = ((Triangle*)intersectables[i])->getVertexBuffer();
-                for(unsigned long z = 0; z < 3*3; z++) {
-                    buffer[z] = vert[z];
+                for(unsigned long z = 0; z < 3; z++) {
+                    glm::vec4 t = glm::vec4(vert[z*3], vert[z*3 + 1], vert[z*3 + 2], 1.0f);
+                    t = intersectables[i]->getTransform() * t;
+                    buffer[z*3] = t.x;
+                    buffer[z*3 + 1] = t.y;
+                    buffer[z*3 + 2] = t.z;
                 }
                 uint32_t *indices = (uint32_t*)rtcSetNewGeometryBuffer(geometry[i], RTC_BUFFER_TYPE_INDEX, 0, RTC_FORMAT_UINT3, sizeof(uint32_t)*3, 3);
                 for(unsigned long z = 0; z < 3*3; z++) {
@@ -401,7 +405,6 @@ void Scene::RenderSliceTape(size_t yfirst, size_t ylast, Framebuffer &fb) {
             uint32_t np = fb.x-x;
             const int numleft = (np > 7) ? 8 : 1;
             Ray r[numleft];
-#pragma omp simd
             for(int i = 0; i < ((np > 7) ? 8: 1); i++) {
                 float nx = ((float)(x+i) / fb.x) - 0.5;
                 float ny = ((float)y / fb.y) - 0.5;
@@ -453,16 +456,12 @@ void Scene::RenderSliceTape(size_t yfirst, size_t ylast, Framebuffer &fb) {
 }
 
 void Scene::GenerateScreenVectors(RTCRayHit16 *r, glm::vec3 correctedright, glm::vec3 localup, size_t xf, size_t yf, size_t xl, size_t yl, int numrays, int *valid) {
-//    glm::vec3 v1 = -correctedright*0.5f + -localup *0.5f;
-//    glm::vec3 v2 = -correctedright*0.5f + localup *0.5f;
-//    glm::vec3 v3 = correctedright*0.5f + -localup *0.5f;
-//    glm::vec3 v4 = correctedright*0.5f + localup *0.5f;
+#pragma omp simd
     for(int i = 0; i < numrays; i++) {
-        float nx = ((float)xf+i)/xl  - 0.5f;
-        float ny = ((float)yf)/yl - 0.5f;
+        float nx = ((float)xf+i)/xl - 0.5;
+        float ny = ((float)yf)/yl - 0.5;
         glm::vec3 origin = config.center;
         glm::vec3 direction = (correctedright * nx) + (-localup * ny) + config.lookat;
-        //direction = quadlerp(v1,v2,v3,v4, nx, ny);
         direction = glm::normalize(direction);
         r->ray.dir_x[i] = direction.x;
         r->ray.dir_y[i] = direction.y;
@@ -485,16 +484,20 @@ void Scene::shade(Intersection &hit, glm::vec3 &fcolor, Ray &ro) {
     if(!hit.intersected) {
         fcolor = glm::vec3(pow(100.0f/255.0f, 2.2f), pow(149.0f/255.0f, 2.2f), pow(237.0f/255.0f, 2.2f));
         return;
-    } else {
-        fcolor = glm::vec3(1.0, 1.0, 1.0);
+    }
+    if(hit.mat.type == REFLECT_REFRACT || hit.mat.type == REFLECT) {
+        fcolor = glm::vec3(0.0f, 0.0f, 0.0f);
         return;
     }
-    fcolor += hit.mat.emits * hit.mat.color;
     glm::vec3 normal = hit.normal;
     glm::vec3 dir = ro.direction;
-    if(glm::dot(normal, -dir) < 0) {
+    int normalok = (glm::dot(normal, -dir) < 0);
+    if(normalok) {
         normal = -normal;
     }
+    fcolor += glm::vec3(1.0, 1.0, 1.0) * dot(normal, -dir);
+    return;
+    fcolor += hit.mat.emits * hit.mat.color * (float)(!normalok);
     for(Light *light : lights) {
         glm::vec3 lightlocation = glm::vec3(light->transform[3][0], light->transform[3][1], light->transform[3][2]);
         glm::vec3 l = lightlocation - hit.point;
@@ -602,16 +605,27 @@ void Scene::shade(Intersection &hit, glm::vec3 &fcolor, Ray &ro) {
         embreecast(&packet, intersections.data(), valid);
     }
     for(size_t i = 0; i < raypktbuf; i++) {
-        if(glm::distance(intersections[i].point, hit.point) < 0.01f && (intersections[i].obj == hit.obj)){
+        if((glm::distance(intersections[i].point, hit.point) < 0.01f) && (intersections[i].obj == hit.obj)){
             //fcolor += glm::vec3(1.0f, 1.0f, 1.0f);
             float dist = glm::distance(intersections[i].point, data[i].pt);
             float attent = 1.0f / (1.0f + (0.0162f)*(dist*dist));
             float dt = glm::dot(normal, glm::normalize(data[i].pt - intersections[i].point));
-            fcolor += data[i].tri->getMaterial().color * dot(intersections[i].normal, rays[i].direction) * dt * attent;
+            fcolor += data[i].tri->getMaterial().color * dt * attent * dot(rays[data[i].id].direction, data[i].normal);
         }
     }
     fcolor *= hit.mat.color;
 }
+
+inline double fastPow(double a, double b) {
+  union {
+    double d;
+    int x[2];
+  } u = { a };
+  u.x[1] = (int)(b * (u.x[1] - 1072632447) + 1072632447);
+  u.x[0] = 0;
+  return u.d;
+}
+
 
 void Scene::RenderSliceEmbree(size_t yfirst, size_t ylast, Framebuffer &fb) {
     glm::vec3 camright = glm::cross(config.up,config.lookat);
@@ -634,10 +648,12 @@ void Scene::RenderSliceEmbree(size_t yfirst, size_t ylast, Framebuffer &fb) {
                 ro.direction = glm::vec3(r.ray.dir_x[i], r.ray.dir_y[i], r.ray.dir_z[i]);
                 shade(hit[i], fcolor[i], ro);
             }
+            const float gfactor = 1.0f / 2.2f;
+#pragma omp simd
             for(size_t i = 0; i < np; i++) {
-                fb.fb[((fb.x * (y)) + (x+i))*3] = fminf(fmaxf(0, pow(fcolor[i].x, 1.0f / 2.2f)*255),255);
-                fb.fb[((fb.x * (y)) + (x+i))*3 + 1] = fminf(fmaxf(0, pow(fcolor[i].y, 1.0f / 2.2f)*255),255);
-                fb.fb[((fb.x * (y)) + (x+i))*3 + 2] = fminf(fmaxf(0, pow(fcolor[i].z, 1.0f / 2.2f)*255),255);
+                fb.fb[((fb.x * (y)) + (x+i))*3] = fminf(fmaxf(0, fastPow(fcolor[i].x, gfactor)*255),255);
+                fb.fb[((fb.x * (y)) + (x+i))*3 + 1] = fminf(fmaxf(0, fastPow(fcolor[i].y, gfactor)*255),255);
+                fb.fb[((fb.x * (y)) + (x+i))*3 + 2] = fminf(fmaxf(0, fastPow(fcolor[i].z, gfactor)*255),255);
             }
             x += np;
         }
@@ -766,6 +782,8 @@ void Scene::render(Framebuffer &fb) {
                 RenderSliceTape(ystep*i, ystep*(i+1), fb);
                 break;
             case Embree:
+                _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+                _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
                 RenderSliceEmbree(ystep*i, ystep*(i+1), fb);
                 break;
             }

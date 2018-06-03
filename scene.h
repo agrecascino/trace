@@ -70,7 +70,7 @@ private:
     cl_kernel kernel;
     cl_mem buffer = NULL, cl_tris = NULL, cl_spheres = NULL, cl_lights = NULL, cl_alights = NULL, cl_emittersets = NULL, cl_halton = NULL;
     RTCGeometry *geometry = NULL;
-    RTCDevice device = rtcNewDevice("verbose=1");
+    RTCDevice device = rtcNewDevice("verbose=3 threads=4");
     RTCScene scene;
     unsigned int g_seed;
     std::atomic<size_t> current_id;
@@ -81,6 +81,7 @@ private:
     unsigned long alightcount = 0;
     unsigned long emittersetscount = 0;
     std::vector<Light*> lights;
+    std::unordered_map<long, Texture> textures;
     std::unordered_map<uint64_t, AreaLight> alightcache;
     ctpl::thread_pool pool;
 };

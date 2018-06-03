@@ -3,8 +3,8 @@ CONFIG += console c++11
 CONFIG -= app_bundle
 CONFIG -= qt
 
-LIBS += -lGLEW -lglfw -lGL -lGLU -lpthread -lembree3 -lglut -lOpenCL -lportaudio -ldrm -lgomp
-QMAKE_CXXFLAGS = -std=gnu++14 -ffast-math -O0 -pthread -fopenmp -march=native
+LIBS += -lGLEW -lglfw -lGL -lGLU -lpthread -lembree3 -lglut -lOpenCL -lportaudio -ldrm -lomp -ltbb
+QMAKE_CXXFLAGS = -std=gnu++14 -fno-math-errno -funsafe-math-optimizations -fassociative-math -freciprocal-math -ffinite-math-only -fno-signed-zeros -fno-trapping-math -frounding-math -fsingle-precision-constant -ffast-math -Ofast -pthread -fopenmp=libomp -march=native
 
 HEADERS += \
     ctpl.h \
@@ -18,7 +18,8 @@ HEADERS += \
     libfont.h \
     qdbmp.h \
     halton.hpp \
-    sobol.hpp
+    sobol.hpp \
+    obj.h
 SOURCES += qdbmp.c \
     main.cpp \
     triangle.cpp \

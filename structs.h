@@ -89,6 +89,8 @@ struct Material {
     float specexp;
     float emits = 0.0;
     int alightid;
+    bool textured;
+    long texid = -1;
 };
 
 struct Light {
@@ -118,6 +120,7 @@ struct Intersection {
     glm::vec3 normal;
     Intersectable *obj;
     Material mat;
+    float u, v;
 };
 
 class Intersectable {
@@ -137,6 +140,12 @@ struct Work {
     Framebuffer fb;
     size_t yfirst;
     size_t ylast;
+};
+
+struct Texture {
+    size_t width;
+    size_t height;
+    unsigned char *rgb;
 };
 
 class OwnedHandle {
