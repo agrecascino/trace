@@ -73,7 +73,7 @@ void playmodule() {
 
 float vectorstringoffset(std::string s) {
     float size = s.size()/2.0;
-    return -(size*9.0 / 800)*100;
+    return -(size*9.0 / 1280)*100;
 }
 
 
@@ -428,10 +428,10 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
     //        }
     //    }
     memset(fb.fb, 255, fb.x*fb.y*3);
-    for( float y = 1.3 ; y >= -1.1 ; y -= 0.0075 ){
-        for( float x = -1.2 ; x <= 1.2 ; x += 0.00625 ) {
-            uint32_t xa = 208 + (x + 1.2)/0.00625;
-            uint32_t ya = 96 +  ((y+1.1) / 0.0075);
+    for( float y = 1.3 ; y >= -1.1; y -= 0.0075/3 ){
+        for( float x = -1.2 ; x <= 1.2 ; x += 0.00625/3 ) {
+            uint32_t xa = 352 + (x + 1.2)/(0.00625/1.5);
+            uint32_t ya = 172 +  ((y+1.1) / (0.0075/1.5));
             if( pow((x*x+y*y-1.0),3) - x*x*y*y*y <= 0.0 ) {
                 //                float amp  = 1.0;
                 //                float tadj = t-4;
@@ -451,9 +451,9 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
                 //                    fb.fb[ya*800*3 + xa*3  + 2] = 255 * amp;
                 //                }
                 float amp = ((fmin(fmax(t, 8.0),10.0)-8.0)/2.0);
-                fb.fb[ya*800*3 + xa*3] = 255 * amp;
-                fb.fb[ya*800*3 + xa*3 + 1] = 255 * amp;
-                fb.fb[ya*800*3 + xa*3 + 2] = 255 * amp;
+                fb.fb[ya*1280*3 + xa*3] = 255 * amp;
+                fb.fb[ya*1280*3 + xa*3 + 1] = 255 * amp;
+                fb.fb[ya*1280*3 + xa*3 + 2] = 255 * amp;
             }
         }
     }
@@ -561,15 +561,16 @@ int main(int argc, char **argv) {
     _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
     _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
     glfwInit();
-    window = glfwCreateWindow(800, 450, "t", NULL, NULL);
+    window = glfwCreateWindow(1280, 720, "t", NULL, NULL);
     glfwMakeContextCurrent(window);
     glewInit();
     Scene man(currentbackend, 4, PrepFrameTest ,DrawFrameTest);
     Framebuffer fb;
-    fb.x = 800;
-    fb.y = 450;
+    fb.x = 1280;
+    fb.y = 720;
     fb.fb = (uint8_t*)malloc(fb.x*fb.y*3);
-
     //cudaDeviceSynchronize();
+    std::this_thread::sleep_for(std::chrono::milliseconds(15000));
+    glfwSetTime(0.0f);
     man.render(fb);
 }

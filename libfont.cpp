@@ -2,6 +2,7 @@
 #include <GL/glcorearb.h>
 #include <string.h>
 #include <iostream>
+#include <glm/vec4.hpp>
 
 static const GLubyte Fixed9x15_Character_000[] = {  9,  0,  0,  0,  0,  0,  0,  0,  0, 91,  0, 64,  0,  1,  0, 65,  0, 64,  0,  1,  0, 65,  0, 64,  0,  1,  0,109,  0,  0,  0,  0,  0};
 static const GLubyte Fixed9x15_Character_001[] = {  9,  0,  0,  0,  0,  0,  0,  0,  0,  8,  0, 28,  0, 62,  0,127,  0,255,128,127,  0, 62,  0, 28,  0,  8,  0,  0,  0,  0,  0,  0,  0};
