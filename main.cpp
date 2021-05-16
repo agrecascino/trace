@@ -31,7 +31,8 @@
 #include <player.h>
 #include "libfont.h"
 #include "bmpread.h"
-
+#include <glm/gtx/transform.hpp>
+#include <glm/ext/matrix_projection.hpp>
 GLFWwindow *window;
 
 bool firstrun = true;
@@ -347,7 +348,7 @@ int PrepFrameTest(Scene *man, Framebuffer &fb) {
         }
     } else if(t < 30) {
         glm::mat4x4 view = glm::lookAt(glm::vec3(-1, 0, 0), glm::vec3(0, 0, 0), glm::vec3(0, 1, 0));
-        glm::mat4x4 projection = glm::project(45.0f, 16/9.0f, 0.01f, 10.0f);
+        //glm::mat4x4 projection = glm::project(45.0f, 16/9.0f, 0.01f, 10.0f);
 
     }
     man->SetCameraConfig(cfg);
